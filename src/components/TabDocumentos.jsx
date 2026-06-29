@@ -3,6 +3,15 @@ import { supabase } from '../supabase'
 
 const CATEGORIAS = ['Regulamento interno', 'Manual de crises', 'Comunicado', 'Treinamento', 'Outro']
 
+function ordenarDocumentos(lista) {
+  return [...lista].sort((a, b) => {
+    const ordemA = Number.isFinite(Number(a.ordem)) ? Number(a.ordem) : 9999
+    const ordemB = Number.isFinite(Number(b.ordem)) ? Number(b.ordem) : 9999
+    if (ordemA !== ordemB) return ordemA - ordemB
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0)
+  })
+}
+
 export default function TabDocumentos() {
   const fileRef = useRef(null)
   const [documentos, setDocumentos] = useState([])
@@ -16,12 +25,25 @@ export default function TabDocumentos() {
 
   async function carregarDocumentos() {
     setLoading(true)
-    const { data } = await supabase
+    let resultado = await supabase
       .from('rh_documentos_empresa')
       .select('*')
+      .order('ordem', { ascending: true })
       .order('created_at', { ascending: false })
 
-    setDocumentos(data || [])
+    if (resultado.error) {
+      resultado = await supabase
+        .from('rh_documentos_empresa')
+        .select('*')
+        .order('created_at', { ascending: false })
+    }
+
+    if (resultado.error) {
+      setMsg({ tipo: 'erro', texto: resultado.error.message })
+      setDocumentos([])
+    } else {
+      setDocumentos(ordenarDocumentos(resultado.data || []))
+    }
     setLoading(false)
   }
 
@@ -69,6 +91,7 @@ export default function TabDocumentos() {
     setSalvando(true)
     try {
       const url = await obterUrlDocumento()
+      const maiorOrdem = documentos.reduce((max, doc, index) => Math.max(max, Number(doc.ordem ?? index)), -1)
       const { error } = await supabase
         .from('rh_documentos_empresa')
         .insert({
@@ -77,6 +100,7 @@ export default function TabDocumentos() {
           descricao: form.descricao.trim() || null,
           url,
           ativo: true,
+          ordem: maiorOrdem + 1,
         })
 
       if (error) throw error
@@ -91,6 +115,33 @@ export default function TabDocumentos() {
       setMsg({ tipo: 'erro', texto: error.message || 'Não foi possível salvar o documento.' })
     } finally {
       setSalvando(false)
+    }
+  }
+
+  async function moverDocumento(index, direcao) {
+    const novoIndex = index + direcao
+    if (novoIndex < 0 || novoIndex >= documentos.length) return
+
+    const novaLista = [...documentos]
+    const atual = novaLista[index]
+    novaLista[index] = novaLista[novoIndex]
+    novaLista[novoIndex] = atual
+
+    const reordenada = novaLista.map((doc, ordem) => ({ ...doc, ordem }))
+    setDocumentos(reordenada)
+
+    const updates = reordenada.map(doc =>
+      supabase
+        .from('rh_documentos_empresa')
+        .update({ ordem: doc.ordem })
+        .eq('id', doc.id)
+    )
+
+    const resultados = await Promise.all(updates)
+    const erro = resultados.find(res => res.error)?.error
+    if (erro) {
+      setMsg({ tipo: 'erro', texto: erro.message })
+      carregarDocumentos()
     }
   }
 
@@ -162,7 +213,7 @@ export default function TabDocumentos() {
           <div style={empty}>Carregando...</div>
         ) : documentos.length === 0 ? (
           <div style={empty}>Nenhum documento publicado ainda.</div>
-        ) : documentos.map(doc => (
+        ) : documentos.map((doc, index) => (
           <div key={doc.id} style={docRow}>
             <div>
               <div style={{ fontWeight: 800, fontSize: 14 }}>{doc.titulo}</div>
@@ -170,6 +221,8 @@ export default function TabDocumentos() {
               {doc.descricao && <div style={{ color: '#777', fontSize: 12, marginTop: 5 }}>{doc.descricao}</div>}
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button onClick={() => moverDocumento(index, -1)} disabled={index === 0} style={btnOrder(index === 0)}>Subir</button>
+              <button onClick={() => moverDocumento(index, 1)} disabled={index === documentos.length - 1} style={btnOrder(index === documentos.length - 1)}>Descer</button>
               <a href={doc.url} target="_blank" rel="noreferrer" style={btnLink}>Abrir</a>
               <button onClick={() => alternarAtivo(doc)} style={btnGhost}>{doc.ativo ? 'Ocultar' : 'Mostrar'}</button>
               <button onClick={() => remover(doc)} style={btnDanger}>Remover</button>
@@ -188,6 +241,7 @@ const inp = { width: '100%', marginTop: 5, padding: '9px 10px', borderRadius: 8,
 const empty = { color: '#888', fontSize: 13, textAlign: 'center', padding: 24 }
 const docRow = { display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f3f4f6' }
 const btnPrimary = (disabled) => ({ marginTop: 14, background: disabled ? '#ccc' : '#e63946', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontWeight: 800, cursor: disabled ? 'default' : 'pointer' })
+const btnOrder = (disabled) => ({ background: disabled ? '#f3f4f6' : '#fff7ed', color: disabled ? '#aaa' : '#9a3412', border: 'none', borderRadius: 7, padding: '7px 10px', fontSize: 12, cursor: disabled ? 'default' : 'pointer' })
 const btnGhost = { background: '#f3f4f6', color: '#555', border: 'none', borderRadius: 7, padding: '7px 10px', fontSize: 12, cursor: 'pointer' }
 const btnDanger = { background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 7, padding: '7px 10px', fontSize: 12, cursor: 'pointer' }
 const btnLink = { background: '#1a1a1a', color: '#fff', borderRadius: 7, padding: '7px 10px', fontSize: 12, textDecoration: 'none' }

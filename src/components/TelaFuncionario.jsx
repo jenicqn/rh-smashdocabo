@@ -329,13 +329,22 @@ export default function TelaFuncionario({ usuario, onLogout }) {
   }
 
   async function carregarDocumentos() {
-    const { data } = await supabase
+    let resultado = await supabase
       .from('rh_documentos_empresa')
       .select('*')
       .eq('ativo', true)
+      .order('ordem', { ascending: true })
       .order('created_at', { ascending: false })
 
-    setDocumentos(data || [])
+    if (resultado.error) {
+      resultado = await supabase
+        .from('rh_documentos_empresa')
+        .select('*')
+        .eq('ativo', true)
+        .order('created_at', { ascending: false })
+    }
+
+    setDocumentos(resultado.data || [])
   }
 
   async function carregarDados() {
