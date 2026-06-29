@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+﻿import { useState, useRef, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { parseCSV } from '../parseCSV'
 
@@ -44,7 +44,7 @@ function calcularAtraso(entradaReal, horarioPrevisto) {
 function limparHora(valor) {
   return String(valor || '')
     .replace(/\s*\([A-Za-z]\)\s*/g, ' ')
-    .replace(/[?¿�]/g, '')
+    .replace(/[�¿]/g, '')
     .trim()
 }
 
@@ -108,6 +108,36 @@ export default function TabPonto() {
 
         const { funcionario, registros, periodo } = parsed
 
+        const { data: funcionarioAtual } = await supabase
+          .from('rh_funcionarios')
+          .select('horario_entrada')
+          .eq('cpf', funcionario.cpf)
+          .maybeSingle()
+
+        const horarioPadrao = funcionarioAtual?.horario_entrada || '16:00'
+        const diasImportados = registros.map(r => r.dia).filter(Boolean)
+        const { data: pontosExistentes } = diasImportados.length
+          ? await supabase
+            .from('registros_ponto')
+            .select('dia, horario_previsto')
+            .eq('funcionario_cpf', funcionario.cpf)
+            .in('dia', diasImportados)
+          : { data: [] }
+
+        const horarioEditadoPorDia = {}
+        pontosExistentes?.forEach(p => {
+          if (p.horario_previsto) horarioEditadoPorDia[p.dia] = p.horario_previsto
+        })
+
+        const registrosComAtraso = registros.map(r => {
+          const horarioPrevisto = horarioEditadoPorDia[r.dia] || horarioPadrao
+          return {
+            ...r,
+            horario_previsto: horarioPrevisto,
+            horas_atraso: r.tipo_dia === 'normal' ? calcularAtraso(r.entrada1, horarioPrevisto) : '',
+          }
+        })
+
         await supabase.from('rh_funcionarios').upsert({
           nome: funcionario.nome,
           cpf: funcionario.cpf,
@@ -117,8 +147,8 @@ export default function TabPonto() {
         }, { onConflict: 'cpf', ignoreDuplicates: false })
 
         let erroReg = null
-        for (let i = 0; i < registros.length; i += 50) {
-          const batch = registros.slice(i, i + 50).map(r => ({ ...r, periodo }))
+        for (let i = 0; i < registrosComAtraso.length; i += 50) {
+          const batch = registrosComAtraso.slice(i, i + 50).map(r => ({ ...r, periodo }))
           const { error } = await supabase.from('registros_ponto').upsert(batch, { onConflict: 'funcionario_cpf,dia' })
           if (error) { erroReg = error.message; break }
         }
@@ -128,10 +158,10 @@ export default function TabPonto() {
           periodo, arquivo: file.name,
           funcionario_nome: funcionario.nome,
           funcionario_cpf: funcionario.cpf,
-          total_registros: registros.length,
+          total_registros: registrosComAtraso.length,
         })
 
-        res.push({ arquivo: file.name, status: 'ok', msg: `${funcionario.nome} - ${registros.length} dias (${periodo})` })
+        res.push({ arquivo: file.name, status: 'ok', msg: `${funcionario.nome} - ${registrosComAtraso.length} dias (${periodo})` })
       } catch (e) {
         res.push({ arquivo: file.name, status: 'erro', msg: e.message })
       }
@@ -182,9 +212,14 @@ export default function TabPonto() {
     setSalvandoPonto(prev => ({ ...prev, [p.id]: true }))
     const horarioPrevisto = editado.horario_previsto ?? p.horario_previsto ?? func?.horario_entrada ?? '16:00'
     const atraso = calcularAtraso(p.entrada1, horarioPrevisto)
-    await supabase.from('registros_ponto')
+    const { error } = await supabase.from('registros_ponto')
       .update({ horario_previsto: horarioPrevisto, horas_atraso: atraso })
       .eq('id', p.id)
+    if (error) {
+      alert(`Não foi possível salvar o horário editado: ${error.message}`)
+      setSalvandoPonto(prev => ({ ...prev, [p.id]: false }))
+      return
+    }
     setCartao(prev => ({
       ...prev,
       pontos: prev.pontos.map(pp => pp.id === p.id ? { ...pp, horario_previsto: horarioPrevisto, horas_atraso: atraso } : pp)
@@ -201,9 +236,14 @@ export default function TabPonto() {
       if (p.tipo_dia !== 'normal') continue
       const horarioPrevisto = pontosEditados[p.id]?.horario_previsto ?? p.horario_previsto ?? cartao.func.horario_entrada ?? '16:00'
       const atraso = calcularAtraso(p.entrada1, horarioPrevisto)
-      await supabase.from('registros_ponto')
+      const { error } = await supabase.from('registros_ponto')
         .update({ horario_previsto: horarioPrevisto, horas_atraso: atraso })
         .eq('id', p.id)
+      if (error) {
+        alert(`Não foi possível recalcular os atrasos: ${error.message}`)
+        setRecalculando(false)
+        return
+      }
       atualizados.push({ id: p.id, horario_previsto: horarioPrevisto, horas_atraso: atraso })
     }
     setCartao(prev => ({
@@ -253,7 +293,7 @@ export default function TabPonto() {
               {loadingCartao ? (
                 <div style={empty}>Carregando...</div>
               ) : cartao.pontos.length === 0 ? (
-                <div style={empty}>Nenhum registro de ponto importado para este mês.</div>
+                <div style={empty}>Nenhum registro de ponto importado para este mes.</div>
               ) : (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '70px 118px 1fr 82px', gap: 8, padding: '6px 8px', fontSize: 11, color: '#888', fontWeight: 700, borderBottom: '1px solid #e5e7eb', marginBottom: 4 }}>
@@ -418,3 +458,6 @@ const sel = { width: 210, maxWidth: '100%', padding: '9px 12px', borderRadius: 8
 const funcCard = { width: '100%', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', textAlign: 'left' }
 const empty = { textAlign: 'center', color: '#888', padding: 40 }
 const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }
+
+
+

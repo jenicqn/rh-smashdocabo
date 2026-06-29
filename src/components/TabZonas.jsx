@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -21,7 +21,7 @@ function gerarOpcoesMes(n = 12) {
 
 const ZONAS = [
   { zona: 1, label: 'Excelência', premio: 200, cor: '#16a34a', bg: '#f0fdf4' },
-  { zona: 2, label: 'Muito Bom', premio: 100, cor: '#0284c7', bg: '#f0f9ff' },
+  { zona: 2, label: 'Muito bom', premio: 100, cor: '#0284c7', bg: '#f0f9ff' },
   { zona: 3, label: 'Bom', premio: 50, cor: '#7c3aed', bg: '#f5f3ff' },
   { zona: 4, label: 'Regular', premio: 0, cor: '#d97706', bg: '#fffbeb' },
   { zona: 5, label: 'Atenção', premio: 0, cor: '#dc2626', bg: '#fef2f2' },
@@ -415,3 +415,6 @@ const sel = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5
 const lbl = { display: 'block', fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 6 }
 const inp = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 14, marginBottom: 14, boxSizing: 'border-box', outline: 'none' }
 const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }
+
+
+

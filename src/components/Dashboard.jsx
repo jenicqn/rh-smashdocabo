@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import logo from '../../logo.png'
 import TabPonto from './TabPonto'
 import TabComissoes from './TabComissoes'
@@ -7,15 +7,17 @@ import TabFaltas from './TabFaltas'
 import TabAdvertencias from './TabAdvertencias'
 import TabFuncionarios from './TabFuncionarios'
 import TabPortal from './TabPortal'
+import TabAjustesMensais from './TabAjustesMensais'
 
 const ABAS = [
-  { id: 'ponto', label: '📤 Ponto' },
-  { id: 'comissoes', label: '💰 Comissões' },
-  { id: 'zonas', label: '🏆 Zonas' },
-  { id: 'faltas', label: '🚫 Faltas' },
-  { id: 'advertencias', label: '⚠️ Advertências' },
-  { id: 'funcionarios', label: '👥 Funcionários' },
-  { id: 'portal', label: '🔐 Portal' },
+  { id: 'ponto', label: 'Ponto' },
+  { id: 'comissões', label: 'Comissões' },
+  { id: 'zonas', label: 'Zonas' },
+  { id: 'faltas', label: 'Faltas' },
+  { id: 'advertencias', label: 'Advertências' },
+  { id: 'funcionários', label: 'Funcionários' },
+  { id: 'ajustes', label: 'Ajustes' },
+  { id: 'portal', label: 'Portal' },
 ]
 
 export default function Dashboard({ onLogout }) {
@@ -45,13 +47,16 @@ export default function Dashboard({ onLogout }) {
       </div>
       <div style={{ padding: '24px 16px', maxWidth: 900, margin: '0 auto' }}>
         {aba === 'ponto' && <TabPonto />}
-        {aba === 'comissoes' && <TabComissoes />}
+        {aba === 'comissões' && <TabComissoes />}
         {aba === 'zonas' && <TabZonas />}
         {aba === 'faltas' && <TabFaltas />}
         {aba === 'advertencias' && <TabAdvertencias />}
-        {aba === 'funcionarios' && <TabFuncionarios />}
+        {aba === 'funcionários' && <TabFuncionarios />}
+        {aba === 'ajustes' && <TabAjustesMensais />}
         {aba === 'portal' && <TabPortal />}
       </div>
     </div>
   )
 }
+
+

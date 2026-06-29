@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
 const TIPOS = {
@@ -105,7 +105,7 @@ export default function TabAdvertencias() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={h2}>⚠️ Advertências</h2>
+        <h2 style={h2}>Advertências</h2>
         <button onClick={() => { setMostrarForm(!mostrarForm); setMsg(null) }} style={{
           background: '#e63946', color: '#fff', border: 'none',
           borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
@@ -115,7 +115,7 @@ export default function TabAdvertencias() {
       {/* Formulário */}
       {mostrarForm && (
         <div style={card}>
-          <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>📝 Registrar advertência</div>
+          <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Registrar advertência</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div style={{ gridColumn: '1/-1' }}>
               <label style={lbl}>Funcionário</label>
@@ -131,8 +131,8 @@ export default function TabAdvertencias() {
             <div>
               <label style={lbl}>Tipo</label>
               <select style={inp} value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
-                <option value="verbal">Advertência Verbal</option>
-                <option value="escrita">Advertência Escrita</option>
+                <option value="verbal">Advertência verbal</option>
+                <option value="escrita">Advertência escrita</option>
                 <option value="suspensao">Suspensão</option>
               </select>
             </div>
@@ -146,7 +146,7 @@ export default function TabAdvertencias() {
 
           {msg && (
             <div style={{ borderRadius: 8, padding: '10px 14px', marginBottom: 12, background: msg.tipo === 'ok' ? '#f0fdf4' : '#fef2f2', color: msg.tipo === 'ok' ? '#16a34a' : '#dc2626', fontSize: 13, fontWeight: 600 }}>
-              {msg.tipo === 'ok' ? '✅' : '❌'} {msg.texto}
+              {msg.texto}
             </div>
           )}
 
@@ -169,7 +169,7 @@ export default function TabAdvertencias() {
         <div style={{ textAlign: 'center', color: '#888', padding: 40 }}>Carregando...</div>
       ) : advertencias.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', color: '#888' }}>
-          Nenhuma advertência registrada neste mês. 👍
+          Nenhuma advertência registrada neste mês.
         </div>
       ) : (
         Object.entries(porFunc).map(([nome, adv]) => (
@@ -196,7 +196,7 @@ export default function TabAdvertencias() {
                   </div>
                   <div style={{ fontSize: 13, color: '#333' }}>{a.motivo}</div>
                 </div>
-                <button onClick={() => deletar(a.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>🗑</button>
+                <button onClick={() => deletar(a.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 12, padding: '0 4px' }}>Excluir</button>
               </div>
             ))}
           </div>
@@ -211,3 +211,6 @@ const card = { background: '#fff', borderRadius: 12, padding: 16, border: '1px s
 const sel = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 15, marginBottom: 16, background: '#fff', cursor: 'pointer' }
 const lbl = { display: 'block', fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 6 }
 const inp = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 14, marginBottom: 14, boxSizing: 'border-box', outline: 'none' }
+
+
+

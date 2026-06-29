@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import logo from '../../logo.png'
 
 export default function TelaLoginRH({ onLogin }) {
@@ -22,11 +22,11 @@ export default function TelaLoginRH({ onLogin }) {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <img src={logo} alt="Smash do Cabo" style={{ width: 150, height: 'auto', marginBottom: 12 }} />
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Smash do Cabo</h1>
-          <p style={{ margin: '4px 0 0', color: '#666', fontSize: 14 }}>Painel de RH - Gerencia</p>
+          <p style={{ margin: '4px 0 0', color: '#666', fontSize: 14 }}>Painel de RH - Gerência</p>
         </div>
         <form onSubmit={handleSubmit}>
           <label style={lbl}>Senha de acesso</label>
-          <input style={inp} type="password" placeholder="��������" value={senha} onChange={e => setSenha(e.target.value)} autoFocus />
+          <input style={inp} type="password" placeholder="••••••••" value={senha} onChange={e => setSenha(e.target.value)} autoFocus />
           {erro && <div style={{ background: '#fee2e2', color: '#b91c1c', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16 }}>{erro}</div>}
           <button disabled={loading} style={{ width: '100%', padding: 13, background: loading ? '#ccc' : '#e63946', color: '#fff', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: loading ? 'default' : 'pointer' }}>
             {loading ? 'Entrando...' : 'Entrar'}
@@ -38,9 +38,9 @@ export default function TelaLoginRH({ onLogin }) {
 
         {mostrarAjuda && (
           <div style={{ marginTop: 12, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, fontSize: 13, color: '#444', lineHeight: 1.45 }}>
-            Altere a senha no Supabase, tabela <strong>rh_configuracoes</strong>, chave <strong>admin_senha</strong>.
+            Altere a senha no Supabase usando a função <strong>alterar_senha_admin</strong>.
             <div style={{ marginTop: 8, color: '#777' }}>
-              Edite o campo <strong>valor</strong> e recarregue esta tela.
+              A senha fica protegida no banco e não aparece no código do site.
             </div>
           </div>
         )}
@@ -51,3 +51,4 @@ export default function TelaLoginRH({ onLogin }) {
 
 const lbl = { display: 'block', fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 6 }
 const inp = { width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 16, marginBottom: 16, boxSizing: 'border-box', outline: 'none' }
+

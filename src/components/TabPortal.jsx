@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
 export default function TabPortal() {
@@ -70,7 +70,7 @@ export default function TabPortal() {
 
   return (
     <div>
-      <h2 style={h2}>🔐 Portal do Funcionário</h2>
+      <h2 style={h2}>Portal do Funcionário</h2>
       <p style={{ color: '#666', fontSize: 14, marginBottom: 16 }}>
         Gerencie o acesso dos funcionários ao <strong>consulta.smashdocabo.com</strong>
       </p>
@@ -79,7 +79,7 @@ export default function TabPortal() {
       {semAcesso.length > 0 && (
         <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
           <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 8, fontSize: 13 }}>
-            ⚠️ {semAcesso.length} funcionário(s) sem acesso ao portal:
+            {semAcesso.length} funcionário(s) sem acesso ao portal:
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {semAcesso.map(f => (
@@ -96,7 +96,7 @@ export default function TabPortal() {
       {editando && (
         <div style={card}>
           <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>
-            {editando === 'novo' ? '➕ Novo acesso' : '✏️ Editar acesso'}
+            {editando === 'novo' ? 'Novo acesso' : 'Editar acesso'}
           </div>
           <label style={lbl}>Nome</label>
           <input style={inp} value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="NOME COMPLETO" />
@@ -110,7 +110,7 @@ export default function TabPortal() {
           </div>
           {msg && (
             <div style={{ borderRadius: 8, padding: '10px 14px', marginBottom: 12, background: msg.tipo === 'ok' ? '#f0fdf4' : '#fef2f2', color: msg.tipo === 'ok' ? '#16a34a' : '#dc2626', fontSize: 13, fontWeight: 600 }}>
-              {msg.tipo === 'ok' ? '✅' : '❌'} {msg.texto}
+              {msg.texto}
             </div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
@@ -124,7 +124,7 @@ export default function TabPortal() {
 
       {/* Busca + botão */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <input style={{ ...inp, flex: 1, marginBottom: 0 }} placeholder="🔍 Buscar..." value={busca} onChange={e => setBusca(e.target.value)} />
+        <input style={{ ...inp, flex: 1, marginBottom: 0 }} placeholder="Buscar..." value={busca} onChange={e => setBusca(e.target.value)} />
         <button onClick={() => { setEditando('novo'); setForm({ nome: '', cpf: '', senha: '', ativo: true }); setMsg(null) }}
           style={{ background: '#e63946', color: '#fff', border: 'none', borderRadius: 8, padding: '0 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
           + Novo
@@ -141,16 +141,16 @@ export default function TabPortal() {
               <div style={{ fontWeight: 600, fontSize: 14 }}>{u.nome}</div>
               <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
                 {u.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
-                {' · Senha: '}
+                {' - Senha: '}
                 <span style={{ fontFamily: 'monospace', color: '#333' }}>{u.senha}</span>
               </div>
-              {!u.ativo && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>⛔ Acesso bloqueado</div>}
+              {!u.ativo && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>Acesso bloqueado</div>}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => { setEditando(u.id); setForm({ nome: u.nome, cpf: u.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4'), senha: u.senha, ativo: u.ativo }); setMsg(null) }}
-                style={btnAcao}>✏️ Editar</button>
+                style={btnAcao}>Editar</button>
               <button onClick={() => toggleAtivo(u)} style={{ ...btnAcao, color: u.ativo ? '#dc2626' : '#16a34a' }}>
-                {u.ativo ? '⛔ Bloquear' : '✅ Ativar'}
+                {u.ativo ? 'Bloquear' : 'Ativar'}
               </button>
             </div>
           </div>
@@ -165,3 +165,6 @@ const card = { background: '#fff', borderRadius: 12, padding: 16, border: '1px s
 const lbl = { display: 'block', fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 6 }
 const inp = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 14, marginBottom: 14, boxSizing: 'border-box', outline: 'none' }
 const btnAcao = { background: '#f3f4f6', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer' }
+
+
+

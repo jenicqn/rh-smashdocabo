@@ -1,4 +1,4 @@
-function limparHora(valor) {
+﻿function limparHora(valor) {
   if (!valor) return ''
   return valor.replace(/\s*\(C\)\s*/g, '').trim()
 }
@@ -140,3 +140,5 @@ export function parseCSV(text, nomeArquivo, horarioEntrada = '16:00') {
   const periodo = detectarPeriodo(registros)
   return { funcionario, registros, periodo, arquivo: nomeArquivo }
 }
+
+

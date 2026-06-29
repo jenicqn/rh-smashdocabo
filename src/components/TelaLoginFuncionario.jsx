@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import logo from '../../logo.png'
 import { supabase } from '../supabase'
 
@@ -64,3 +64,5 @@ export default function TelaLoginFuncionario({ onLogin }) {
 
 const lbl = { display: 'block', fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 6 }
 const inp = { width: '100%', padding: '12px 14px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 16, marginBottom: 16, boxSizing: 'border-box', outline: 'none' }
+
+

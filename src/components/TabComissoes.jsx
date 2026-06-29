@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -146,17 +146,22 @@ export default function TabComissoes() {
 
   const totalMes = lancamentos.reduce((a, l) => a + parseFloat(l.valor), 0)
   const inativosNaData = todosFuncionarios.filter(f => !eraAtivoNaData(f, mes, parseInt(dia)) && f.status !== 'demitido')
+  const totaisResumo = resumo.reduce((acc, r) => ({
+    bruto: acc.bruto + r.bruto,
+    empresa: acc.empresa + r.empresa,
+    liquido: acc.liquido + r.liquido,
+  }), { bruto: 0, empresa: 0, liquido: 0 })
 
   return (
     <div>
-      <h2 style={h2}>💰 Lançamento de Comissões</h2>
+      <h2 style={h2}>Lançamento de Comissões</h2>
 
       <select value={mes} onChange={e => setMes(e.target.value)} style={sel}>
         {gerarOpcoesMes().map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
       </select>
 
       <div style={card}>
-        <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>➕ Novo lançamento</div>
+        <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Novo lançamento</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div>
             <label style={lbl}>Dia</label>
@@ -199,31 +204,31 @@ export default function TabComissoes() {
 
         {inativosNaData.length > 0 && (
           <div style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>
-            ⏸️ Fora do rateio nesta data: {inativosNaData.map(f => f.nome.split(' ')[0]).join(', ')}
+            Fora do rateio nesta data: {inativosNaData.map(f => f.nome.split(' ')[0]).join(', ')}
           </div>
         )}
 
         {selecionados.length > 0 && valor && parseFloat(valor) > 0 && (
           <div style={{ background: '#f9fafb', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#555' }}>
             Cada funcionário recebe: <strong>R$ {(parseFloat(valor) / selecionados.length * 0.8).toFixed(2).replace('.', ',')}</strong>
-            {' '}(líquido, 80%) · {selecionados.length} no rateio
+            {' '}(líquido, 80%) - {selecionados.length} no rateio
           </div>
         )}
 
         {msg && (
           <div style={{ borderRadius: 8, padding: '10px 14px', marginBottom: 12, background: msg.tipo === 'ok' ? '#f0fdf4' : '#fef2f2', color: msg.tipo === 'ok' ? '#16a34a' : '#dc2626', fontSize: 13, fontWeight: 600 }}>
-            {msg.tipo === 'ok' ? '✅' : '❌'} {msg.texto}
+            {msg.texto}
           </div>
         )}
 
         <button onClick={handleLancar} disabled={salvando} style={btnPrimary(salvando)}>
-          {salvando ? 'Salvando...' : '💾 Lançar comissão'}
+          {salvando ? 'Salvando...' : 'Lançar comissão'}
         </button>
       </div>
 
       {resumo.length > 0 && (
         <div style={card}>
-          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>📊 Resumo do mês</div>
+          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>Resumo do mês</div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
@@ -243,6 +248,13 @@ export default function TabComissoes() {
                     <td style={{ padding: '8px 10px', color: '#16a34a', fontWeight: 700 }}>R$ {r.liquido.toFixed(2).replace('.', ',')}</td>
                   </tr>
                 ))}
+                <tr style={{ borderTop: '2px solid #e5e7eb', background: '#f9fafb' }}>
+                  <td style={{ padding: '10px', fontWeight: 800 }}>Total</td>
+                  <td style={{ padding: '10px' }}></td>
+                  <td style={{ padding: '10px', fontWeight: 800 }}>R$ {totaisResumo.bruto.toFixed(2).replace('.', ',')}</td>
+                  <td style={{ padding: '10px', color: '#dc2626', fontWeight: 800 }}>R$ {totaisResumo.empresa.toFixed(2).replace('.', ',')}</td>
+                  <td style={{ padding: '10px', color: '#16a34a', fontWeight: 800 }}>R$ {totaisResumo.liquido.toFixed(2).replace('.', ',')}</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -251,14 +263,14 @@ export default function TabComissoes() {
 
       <div style={card}>
         <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>
-          📋 Lançamentos — Total: R$ {totalMes.toFixed(2).replace('.', ',')}
+          Lançamentos - Total: R$ {totalMes.toFixed(2).replace('.', ',')}
         </div>
         {loading ? (
           <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>Carregando...</div>
         ) : lancamentos.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>Nenhum lançamento neste mês.</div>
         ) : lancamentos.map(l => {
-          const nomes = funcionariosNoRateio(l).map(f => f.nome.split(' ')[0]).join(', ') || 'Nenhum funcionario ativo no rateio'
+          const nomes = funcionariosNoRateio(l).map(f => f.nome.split(' ')[0]).join(', ') || 'Nenhum funcionário ativo no rateio'
           return (
             <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
               <div>
@@ -266,7 +278,7 @@ export default function TabComissoes() {
                 <span style={{ color: '#16a34a', fontWeight: 600 }}>R$ {parseFloat(l.valor).toFixed(2).replace('.', ',')}</span>
                 <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>{nomes}</div>
               </div>
-              <button onClick={() => handleDeletar(l.id)} style={{ background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>🗑</button>
+              <button onClick={() => handleDeletar(l.id)} style={{ background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>Excluir</button>
             </div>
           )
         })}
@@ -281,3 +293,6 @@ const sel = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5
 const lbl = { display: 'block', fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 6 }
 const inp = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 14, boxSizing: 'border-box', outline: 'none' }
 const btnPrimary = (dis) => ({ width: '100%', padding: 12, background: dis ? '#ccc' : '#e63946', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: dis ? 'default' : 'pointer' })
+
+
+

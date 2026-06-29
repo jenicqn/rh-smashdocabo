@@ -1,7 +1,9 @@
--- =============================================
--- RH SMASH DO CABO — Schema completo
+﻿-- =============================================
+-- RH SMASH DO CABO â€” Schema completo
 -- Execute no SQL Editor do Supabase
 -- =============================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 CREATE TABLE IF NOT EXISTS rh_funcionarios (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -55,6 +57,17 @@ CREATE TABLE IF NOT EXISTS rh_zonas (
   UNIQUE(funcionario_id, mes)
 );
 
+CREATE TABLE IF NOT EXISTS rh_ajustes_mensais (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  funcionario_id UUID NOT NULL REFERENCES rh_funcionarios(id),
+  mes TEXT NOT NULL,
+  comissao NUMERIC(10,2) DEFAULT 0,
+  banco_horas TEXT DEFAULT '00:00',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(funcionario_id, mes)
+);
+
 CREATE TABLE IF NOT EXISTS registros_ponto (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   funcionario_cpf TEXT NOT NULL,
@@ -74,11 +87,15 @@ CREATE TABLE IF NOT EXISTS registros_ponto (
   extra_100 TEXT,
   banco_total TEXT,
   banco_saldo TEXT,
+  horario_previsto TEXT,
   justificativa TEXT,
   tipo_dia TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(funcionario_cpf, dia)
 );
+
+ALTER TABLE registros_ponto
+ADD COLUMN IF NOT EXISTS horario_previsto TEXT;
 
 CREATE TABLE IF NOT EXISTS uploads_ponto (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -106,14 +123,55 @@ CREATE TABLE IF NOT EXISTS rh_configuracoes (
 );
 
 INSERT INTO rh_configuracoes (chave, valor)
-VALUES ('admin_senha', 'smash@rh2026')
+VALUES ('admin_senha', extensions.crypt('smash@rh2026', extensions.gen_salt('bf')))
 ON CONFLICT (chave) DO NOTHING;
+
+UPDATE rh_configuracoes
+SET valor = extensions.crypt(valor, extensions.gen_salt('bf')),
+    updated_at = NOW()
+WHERE chave = 'admin_senha'
+  AND valor NOT LIKE '$2%';
+
+CREATE OR REPLACE FUNCTION autenticar_admin(senha_digitada TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1
+    FROM rh_configuracoes
+    WHERE chave = 'admin_senha'
+      AND valor = extensions.crypt(senha_digitada, valor)
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION alterar_senha_admin(nova_senha TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+BEGIN
+  UPDATE rh_configuracoes
+  SET valor = extensions.crypt(nova_senha, extensions.gen_salt('bf')),
+      updated_at = NOW()
+  WHERE chave = 'admin_senha';
+END;
+$$;
+
+REVOKE ALL ON FUNCTION autenticar_admin(TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION alterar_senha_admin(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION autenticar_admin(TEXT) TO anon, authenticated;
 
 ALTER TABLE rh_funcionarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rh_comissoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rh_faltas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rh_advertencias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rh_zonas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rh_ajustes_mensais ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registros_ponto ENABLE ROW LEVEL SECURITY;
 ALTER TABLE uploads_ponto ENABLE ROW LEVEL SECURITY;
 ALTER TABLE portal_usuarios ENABLE ROW LEVEL SECURITY;
@@ -124,7 +182,9 @@ CREATE POLICY "allow_all_rh_com" ON rh_comissoes FOR ALL USING (true);
 CREATE POLICY "allow_all_rh_faltas" ON rh_faltas FOR ALL USING (true);
 CREATE POLICY "allow_all_rh_adv" ON rh_advertencias FOR ALL USING (true);
 CREATE POLICY "allow_all_rh_zonas" ON rh_zonas FOR ALL USING (true);
+CREATE POLICY "allow_all_rh_ajustes" ON rh_ajustes_mensais FOR ALL USING (true);
 CREATE POLICY "allow_all_ponto" ON registros_ponto FOR ALL USING (true);
 CREATE POLICY "allow_all_uploads" ON uploads_ponto FOR ALL USING (true);
 CREATE POLICY "allow_all_portal" ON portal_usuarios FOR ALL USING (true);
-CREATE POLICY "allow_all_config" ON rh_configuracoes FOR ALL USING (true);
+DROP POLICY IF EXISTS "allow_all_config" ON rh_configuracoes;
+
