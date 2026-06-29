@@ -17,6 +17,13 @@ const ZONAS = [
   { zona: 5, imagem: zona5, label: 'Atenção', premio: 0, cor: '#dc2626', bg: '#fef2f2' },
   { zona: 6, imagem: zona6, label: 'Crítico', premio: 0, cor: '#1a1a1a', bg: '#f9fafb' },
 ]
+const BONIFICACOES_TEMPO_CASA = [
+  { meses: 24, valor: 1000 },
+  { meses: 36, valor: 1500 },
+  { meses: 48, valor: 2000 },
+  { meses: 60, valor: 3000 },
+  { meses: 72, valor: 4000 },
+]
 
 function mesAtual() {
   const d = new Date()
@@ -50,6 +57,82 @@ function gerarOpcoesMes(n = 6) {
 
 function formatMoeda(valor) {
   return `R$ ${(valor || 0).toFixed(2).replace('.', ',')}`
+}
+
+function formatarData(valor) {
+  if (!valor) return 'Não informada'
+  return new Date(valor + 'T12:00:00').toLocaleDateString('pt-BR')
+}
+
+function formatarDataHora(valor) {
+  if (!valor) return 'Não informada'
+  return new Date(valor).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function mesesEntreDatas(inicio, fim) {
+  let meses = (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth())
+  if (fim.getDate() < inicio.getDate()) meses -= 1
+  return Math.max(0, meses)
+}
+
+function somarMeses(data, meses) {
+  const resultado = new Date(data)
+  const diaOriginal = resultado.getDate()
+  resultado.setMonth(resultado.getMonth() + meses)
+  if (resultado.getDate() !== diaOriginal) resultado.setDate(0)
+  return resultado
+}
+
+function formatarTempo(meses) {
+  const anos = Math.floor(meses / 12)
+  const resto = meses % 12
+  const textoMeses = resto === 1 ? '1 mês' : `${resto} meses`
+  if (anos === 0) return textoMeses
+  if (resto === 0) return `${anos} ano${anos === 1 ? '' : 's'}`
+  return `${anos} ano${anos === 1 ? '' : 's'} e ${textoMeses}`
+}
+
+function calcularBonificacaoTempoCasa(dataAdmissao) {
+  if (!dataAdmissao) return null
+
+  const admissao = new Date(dataAdmissao + 'T12:00:00')
+  const hoje = new Date()
+  const mesesDeCasa = mesesEntreDatas(admissao, hoje)
+  const proxima = BONIFICACOES_TEMPO_CASA.find(item => item.meses > mesesDeCasa)
+  const ultima = [...BONIFICACOES_TEMPO_CASA].reverse().find(item => item.meses <= mesesDeCasa) || null
+
+  if (!proxima) {
+    return {
+      admissao,
+      mesesDeCasa,
+      ultima,
+      proxima: null,
+      dataProxima: null,
+      mesesFaltantes: 0,
+      diasFaltantes: 0,
+    }
+  }
+
+  const dataProxima = somarMeses(admissao, proxima.meses)
+  const hojeMeiaNoite = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+  const dataProximaMeiaNoite = new Date(dataProxima.getFullYear(), dataProxima.getMonth(), dataProxima.getDate())
+  const diasFaltantes = Math.max(0, Math.ceil((dataProximaMeiaNoite - hojeMeiaNoite) / 86400000))
+
+  return {
+    admissao,
+    mesesDeCasa,
+    ultima,
+    proxima,
+    dataProxima,
+    mesesFaltantes: proxima.meses - mesesDeCasa,
+    diasFaltantes,
+  }
 }
 
 function limparHoraPonto(valor) {
@@ -210,6 +293,7 @@ function useIsMobile() {
 
 export default function TelaFuncionario({ usuario, onLogout }) {
   const isMobile = useIsMobile()
+  const [abaPortal, setAbaPortal] = useState('painel')
   const [mes, setMes] = useState(mesAtual())
   const [funcionario, setFuncionario] = useState(null)
   const [zonaFinal, setZonaFinal] = useState(null)
@@ -223,11 +307,14 @@ export default function TelaFuncionario({ usuario, onLogout }) {
   const [pontos, setPontos] = useState([])
   const [bancoMes, setBancoMes] = useState('00:00')
   const [bancoTotal, setBancoTotal] = useState('00:00')
-  const [resumoSemestre, setResumoSemestre] = useState({ comissao: 0, premiacao: 0, total: 0 })
+  const [premiacaoSemestre, setPremiacaoSemestre] = useState(0)
+  const [documentos, setDocumentos] = useState([])
+  const [ultimoUpload, setUltimoUpload] = useState(null)
   const [loading, setLoading] = useState(true)
   const [modalZona, setModalZona] = useState(null)
 
   useEffect(() => { carregarFuncionario() }, [])
+  useEffect(() => { carregarDocumentos() }, [])
   useEffect(() => { if (funcionario) carregarDados() }, [mes, funcionario?.id])
 
   async function carregarFuncionario() {
@@ -241,6 +328,16 @@ export default function TelaFuncionario({ usuario, onLogout }) {
     if (data) setFuncionario(data)
   }
 
+  async function carregarDocumentos() {
+    const { data } = await supabase
+      .from('rh_documentos_empresa')
+      .select('*')
+      .eq('ativo', true)
+      .order('created_at', { ascending: false })
+
+    setDocumentos(data || [])
+  }
+
   async function carregarDados() {
     setLoading(true)
     const inicio = `${mes}-01`
@@ -250,7 +347,7 @@ export default function TelaFuncionario({ usuario, onLogout }) {
     const mesAnt = mesAnterior(mes)
     const semestre = intervaloSemestre(mes)
 
-    const [zonaRes, zonaAntRes, comRes, comAntRes, pontoRes, faltasRes, advRes, funcsRes, bancoRes, ajusteRes, ajustesSemestreRes, comSemestreRes, zonasSemestreRes] = await Promise.all([
+    const [zonaRes, zonaAntRes, comRes, comAntRes, pontoRes, faltasRes, advRes, funcsRes, bancoRes, ajusteRes, ajustesSemestreRes, zonasSemestreRes, uploadRes] = await Promise.all([
       supabase.from('rh_zonas').select('*').eq('funcionario_id', funcionario.id).eq('mes', mes).maybeSingle(),
       supabase.from('rh_zonas').select('*').eq('funcionario_id', funcionario.id).eq('mes', mesAnt).maybeSingle(),
       supabase.from('rh_comissoes').select('*').eq('mes', mes).order('dia'),
@@ -262,8 +359,8 @@ export default function TelaFuncionario({ usuario, onLogout }) {
       supabase.from('registros_ponto').select('dia,banco_total').eq('funcionario_cpf', cpfLimpo).gte('dia', semestre.inicio).lte('dia', semestre.fim).order('dia'),
       supabase.from('rh_ajustes_mensais').select('*').eq('funcionario_id', funcionario.id).in('mes', [mes, mesAnt]),
       supabase.from('rh_ajustes_mensais').select('mes,banco_horas,comissao').eq('funcionario_id', funcionario.id).gte('mes', semestre.inicio.slice(0, 7)).lte('mes', semestre.fim.slice(0, 7)),
-      supabase.from('rh_comissoes').select('*').gte('mes', semestre.inicio.slice(0, 7)).lte('mes', semestre.fim.slice(0, 7)).order('mes').order('dia'),
       supabase.from('rh_zonas').select('mes,premio').eq('funcionario_id', funcionario.id).gte('mes', semestre.inicio.slice(0, 7)).lte('mes', semestre.fim.slice(0, 7)),
+      supabase.from('uploads_ponto').select('periodo, arquivo, uploaded_at').eq('funcionario_cpf', cpfLimpo).order('uploaded_at', { ascending: false }).limit(1).maybeSingle(),
     ])
 
     const pontoData = pontoRes.data || []
@@ -323,30 +420,15 @@ export default function TelaFuncionario({ usuario, onLogout }) {
     })
     setComissoes(minhasComissoes)
     const totalComissoesAnterior = minhasComissoesAnterior.reduce((acc, valor) => acc + valor, 0)
-    const comissaoSemestreRateio = (comSemestreRes.data || []).reduce((acc, c) => {
-      const ids = idsDoLancamento(c)
-      const participantes = ids
-        .map(id => funcionarios.find(f => f.id === id))
-        .filter(Boolean)
-        .filter(f => eraAtivoNaData(f, c.mes, parseInt(c.dia)))
-
-      if (!participantes.find(f => f.id === funcionario.id)) return acc
-      return acc + (parseFloat(c.valor) / participantes.length * 0.8)
-    }, 0)
-    const comissaoSemestreAjustes = ajustesSemestre.reduce((acc, a) => acc + parseFloat(a.comissao || 0), 0)
-    const premiacaoSemestre = (zonasSemestreRes.data || []).reduce((acc, z) => acc + parseFloat(z.premio || 0), 0)
-    const comissaoSemestre = comissaoSemestreRateio + comissaoSemestreAjustes
+    const totalPremiacaoSemestre = (zonasSemestreRes.data || []).reduce((acc, z) => acc + parseFloat(z.premio || 0), 0)
 
     setComissaoAnterior(totalComissoesAnterior + parseFloat(ajusteMesAnterior?.comissao || 0))
     setPontos(pontoData)
     setBancoMes(bancoDoMes(pontoData, ajusteMes))
     setBancoTotal(calcularBancoSemestre(bancoRes.data || [], ajustesSemestre))
     setAjusteComissao(parseFloat(ajusteMes?.comissao || 0))
-    setResumoSemestre({
-      comissao: comissaoSemestre,
-      premiacao: premiacaoSemestre,
-      total: comissaoSemestre + premiacaoSemestre,
-    })
+    setPremiacaoSemestre(totalPremiacaoSemestre)
+    setUltimoUpload(uploadRes.data || null)
     setLoading(false)
 
     setModalZona({
@@ -463,14 +545,40 @@ export default function TelaFuncionario({ usuario, onLogout }) {
       </div>
 
       <main style={{ padding: isMobile ? '12px 10px 24px' : '18px 14px 28px', maxWidth: 860, margin: '0 auto' }}>
-        <select value={mes} onChange={e => setMes(e.target.value)} style={sel}>
-          {gerarOpcoesMes().map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
-        </select>
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: isMobile ? 12 : 14, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: '#666', fontWeight: 800, marginBottom: 4 }}>Atualização dos dados</div>
+          <div style={{ fontSize: 14, color: '#111', fontWeight: 800 }}>
+            Última atualização: {ultimoUpload ? formatarDataHora(ultimoUpload.uploaded_at) : 'ainda não informada'}
+          </div>
+          <div style={{ color: '#666', fontSize: 12, marginTop: 4, lineHeight: 1.35 }}>
+            As informações do portal são atualizadas 1 vez por semana.
+          </div>
+        </div>
 
-        {loading ? (
-          <div style={{ textAlign: 'center', color: '#888', padding: 40 }}>Carregando...</div>
+        <div style={{ background: '#fffbeb', border: '1px solid #facc15', borderRadius: 10, padding: isMobile ? 12 : 14, marginBottom: 12, color: '#854d0e', fontSize: 13, fontWeight: 800, lineHeight: 1.35 }}>
+          ⚠️ SITE E MODELO DE PREMIAÇÃO EM FASE DE TESTES. AS INFORMAÇÕES PODEM SOFRER ALTERAÇÕES. ⚠️
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
+          <button onClick={() => setAbaPortal('painel')} style={portalTabBtn(abaPortal === 'painel')}>Painel</button>
+          <button onClick={() => setAbaPortal('bonificacao')} style={portalTabBtn(abaPortal === 'bonificacao')}>Bonificação</button>
+          <button onClick={() => setAbaPortal('documentos')} style={portalTabBtn(abaPortal === 'documentos')}>Documentos</button>
+        </div>
+
+        {abaPortal === 'documentos' ? (
+          <DocumentosPortal documentos={documentos} isMobile={isMobile} />
+        ) : abaPortal === 'bonificacao' ? (
+          <BonificacaoPortal funcionario={funcionario} isMobile={isMobile} />
         ) : (
           <>
+            <select value={mes} onChange={e => setMes(e.target.value)} style={sel}>
+              {gerarOpcoesMes().map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+            </select>
+
+            {loading ? (
+              <div style={{ textAlign: 'center', color: '#888', padding: 40 }}>Carregando...</div>
+            ) : (
+              <>
             <section style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.1fr 1.25fr 1.15fr 1.25fr', gap: 10, marginBottom: 14 }}>
               <div style={{ ...card, padding: isMobile ? 14 : 16, background: '#fff', borderColor: '#e5e7eb' }}>
                 <div style={kicker}>Comissão do último mês</div>
@@ -513,15 +621,13 @@ export default function TelaFuncionario({ usuario, onLogout }) {
 
             <section style={{ ...card, padding: isMobile ? 14 : 16, marginBottom: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-                <div style={{ fontWeight: 800, fontSize: 18 }}>Ganhos do semestre</div>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>Premiações do semestre</div>
                 <div style={{ color: '#16a34a', fontWeight: 900, fontSize: isMobile ? 26 : 30, whiteSpace: 'nowrap' }}>
-                  {formatMoeda(resumoSemestre.total)}
+                  {formatMoeda(premiacaoSemestre)}
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 8 }}>
-                <ResumoValor label="Comissão" valor={formatMoeda(resumoSemestre.comissao)} />
-                <ResumoValor label="Premiação das zonas" valor={formatMoeda(resumoSemestre.premiacao)} />
-                <ResumoValor label="Total previsto" valor={formatMoeda(resumoSemestre.total)} destaque />
+              <div style={{ color: '#666', fontSize: 13, lineHeight: 1.4 }}>
+                Soma das premiações de zona fechadas dentro do semestre atual.
               </div>
             </section>
 
@@ -601,6 +707,8 @@ export default function TelaFuncionario({ usuario, onLogout }) {
                 </>
               )}
             </section>
+              </>
+            )}
           </>
         )}
       </main>
@@ -617,12 +725,105 @@ function Mini({ label, valor, alerta }) {
   )
 }
 
-function ResumoValor({ label, valor, destaque }) {
+function DocumentosPortal({ documentos, isMobile }) {
   return (
-    <div style={{ background: destaque ? '#f0fdf4' : '#f9fafb', border: `1px solid ${destaque ? '#bbf7d0' : '#e5e7eb'}`, borderRadius: 8, padding: 12 }}>
-      <div style={{ fontSize: 11, color: '#777', fontWeight: 700, marginBottom: 5 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 900, color: destaque ? '#16a34a' : '#111', whiteSpace: 'nowrap' }}>{valor}</div>
-    </div>
+    <section style={{ ...card, padding: 16 }}>
+      <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 6 }}>Documentos da empresa</div>
+      <div style={{ color: '#666', fontSize: 13, marginBottom: 14 }}>
+        Regulamentos, manuais e comunicados disponíveis para consulta.
+      </div>
+
+      {documentos.length === 0 ? (
+        <div style={empty}>Nenhum documento disponível no momento.</div>
+      ) : documentos.map(doc => (
+        <div key={doc.id} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: 12, alignItems: 'center', padding: '13px 0', borderBottom: '1px solid #f3f4f6' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15 }}>{doc.titulo}</div>
+            <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{doc.categoria || 'Documento'}</div>
+            {doc.descricao && <div style={{ color: '#777', fontSize: 13, marginTop: 6, lineHeight: 1.35 }}>{doc.descricao}</div>}
+          </div>
+          <a href={doc.url} target="_blank" rel="noreferrer" style={{ background: '#1a1a1a', color: '#fff', borderRadius: 8, padding: '9px 12px', textDecoration: 'none', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', textAlign: 'center' }}>
+            Abrir
+          </a>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+function BonificacaoPortal({ funcionario, isMobile }) {
+  const resumo = calcularBonificacaoTempoCasa(funcionario?.data_admissao)
+
+  if (!funcionario) {
+    return <section style={{ ...card, padding: 16 }}><div style={empty}>Carregando dados do funcionário...</div></section>
+  }
+
+  if (!resumo) {
+    return (
+      <section style={{ ...card, padding: 16 }}>
+        <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 6 }}>Bonificação por tempo de casa</div>
+        <div style={empty}>A data de admissão ainda não foi informada no cadastro.</div>
+      </section>
+    )
+  }
+
+  return (
+    <section style={{ ...card, padding: isMobile ? 14 : 18 }}>
+      <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 6 }}>Bonificação por tempo de casa</div>
+      <div style={{ color: '#666', fontSize: 13, marginBottom: 16, lineHeight: 1.4 }}>
+        A bonificação é calculada pela data de admissão cadastrada no RH.
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+        <div style={infoBox}>
+          <div style={bancoLabel}>Data de admissão</div>
+          <div style={infoValor}>{formatarData(funcionario.data_admissao)}</div>
+        </div>
+        <div style={infoBox}>
+          <div style={bancoLabel}>Tempo de casa</div>
+          <div style={infoValor}>{formatarTempo(resumo.mesesDeCasa)}</div>
+        </div>
+        <div style={{ ...infoBox, background: '#f0fdf4', borderColor: '#bbf7d0' }}>
+          <div style={bancoLabel}>{resumo.proxima ? 'Próxima bonificação' : 'Maior bonificação alcançada'}</div>
+          <div style={{ ...infoValor, color: '#16a34a' }}>{formatMoeda((resumo.proxima || resumo.ultima)?.valor || 0)}</div>
+        </div>
+      </div>
+
+      {resumo.proxima ? (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+          <div style={{ color: '#9a3412', fontSize: 12, fontWeight: 800, marginBottom: 5 }}>
+            Próximo marco: {formatarTempo(resumo.proxima.meses)}
+          </div>
+          <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 900, color: '#111', lineHeight: 1.1 }}>
+            Faltam {formatarTempo(resumo.mesesFaltantes)}
+          </div>
+          <div style={{ color: '#666', fontSize: 13, marginTop: 6 }}>
+            Previsão: {resumo.dataProxima.toLocaleDateString('pt-BR')} · {resumo.diasFaltantes} dia(s)
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+          <div style={{ fontSize: 22, fontWeight: 900, color: '#16a34a' }}>Você já completou todos os marcos cadastrados.</div>
+        </div>
+      )}
+
+      <div style={{ fontWeight: 800, marginBottom: 10 }}>Tabela de bonificações</div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {BONIFICACOES_TEMPO_CASA.map(item => {
+          const concluido = resumo.mesesDeCasa >= item.meses
+          const atual = resumo.proxima?.meses === item.meses
+          return (
+            <div key={item.meses} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', border: `1px solid ${atual ? '#fed7aa' : concluido ? '#bbf7d0' : '#e5e7eb'}`, background: atual ? '#fff7ed' : concluido ? '#f0fdf4' : '#fff', borderRadius: 8, padding: 11 }}>
+              <div>
+                <div style={{ fontWeight: 800 }}>{formatarTempo(item.meses)}</div>
+                <div style={{ color: '#777', fontSize: 12 }}>{concluido ? 'Marco alcançado' : atual ? 'Próximo marco' : 'Ainda em andamento'}</div>
+              </div>
+              <div style={{ fontWeight: 900, color: concluido || atual ? '#16a34a' : '#111', whiteSpace: 'nowrap' }}>{formatMoeda(item.valor)}</div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
@@ -638,3 +839,6 @@ const pdfBtn = { margin: '12px 0', width: '100%', border: 'none', borderRadius: 
 const bancoBox = { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 10 }
 const bancoLabel = { fontSize: 11, color: '#777', marginBottom: 4 }
 const bancoValor = { fontSize: 18, fontWeight: 800, color: '#111' }
+const infoBox = { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12 }
+const infoValor = { fontSize: 20, fontWeight: 900, color: '#111', lineHeight: 1.1 }
+const portalTabBtn = (active) => ({ border: `1.5px solid ${active ? '#e63946' : '#e5e7eb'}`, background: active ? '#fff1f2' : '#fff', color: active ? '#e63946' : '#555', borderRadius: 8, padding: '11px 12px', fontSize: 14, fontWeight: 800, cursor: 'pointer' })

@@ -8,6 +8,7 @@ import TabAdvertencias from './TabAdvertencias'
 import TabFuncionarios from './TabFuncionarios'
 import TabPortal from './TabPortal'
 import TabAjustesMensais from './TabAjustesMensais'
+import TabDocumentos from './TabDocumentos'
 
 const ABAS = [
   { id: 'ponto', label: 'Ponto' },
@@ -17,6 +18,7 @@ const ABAS = [
   { id: 'advertencias', label: 'Advertências' },
   { id: 'funcionários', label: 'Funcionários' },
   { id: 'ajustes', label: 'Ajustes' },
+  { id: 'documentos', label: 'Documentos' },
   { id: 'portal', label: 'Portal' },
 ]
 
@@ -53,6 +55,7 @@ export default function Dashboard({ onLogout }) {
         {aba === 'advertencias' && <TabAdvertencias />}
         {aba === 'funcionários' && <TabFuncionarios />}
         {aba === 'ajustes' && <TabAjustesMensais />}
+        {aba === 'documentos' && <TabDocumentos />}
         {aba === 'portal' && <TabPortal />}
       </div>
     </div>
