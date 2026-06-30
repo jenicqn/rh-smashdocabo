@@ -50,6 +50,12 @@ function eraAtivoNaData(func, mes, dia) {
   return true
 }
 
+function idsDoLancamento(lancamento) {
+  return Array.isArray(lancamento.funcionarios)
+    ? lancamento.funcionarios
+    : JSON.parse(lancamento.funcionarios || '[]')
+}
+
 export default function TabComissoes() {
   const [mes, setMes] = useState(mesAtual())
   const [dia, setDia] = useState(new Date().getDate())
@@ -62,6 +68,8 @@ export default function TabComissoes() {
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState(null)
   const [resumo, setResumo] = useState([])
+  const [lancamentosAberto, setLancamentosAberto] = useState(false)
+  const [editando, setEditando] = useState(null)
 
   useEffect(() => { carregarFuncionarios() }, [])
   useEffect(() => { carregarLancamentos() }, [mes])
@@ -88,9 +96,7 @@ export default function TabComissoes() {
   }
 
   function funcionariosNoRateio(lancamento) {
-    const ids = Array.isArray(lancamento.funcionarios)
-      ? lancamento.funcionarios
-      : JSON.parse(lancamento.funcionarios || '[]')
+    const ids = idsDoLancamento(lancamento)
 
     return ids
       .map(id => todosFuncionarios.find(f => f.id === id))
@@ -137,11 +143,70 @@ export default function TabComissoes() {
   async function handleDeletar(id) {
     if (!confirm('Excluir este lançamento?')) return
     await supabase.from('rh_comissoes').delete().eq('id', id)
+    if (editando?.id === id) setEditando(null)
     carregarLancamentos()
   }
 
   function toggleFunc(id) {
     setSelecionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  function iniciarEdicao(lancamento) {
+    setEditando({
+      id: lancamento.id,
+      dia: String(lancamento.dia),
+      valor: String(lancamento.valor),
+      funcionarios: idsDoLancamento(lancamento),
+    })
+  }
+
+  function alterarDiaEdicao(novoDia) {
+    const ativosNovoDia = todosFuncionarios.filter(f => eraAtivoNaData(f, mes, parseInt(novoDia)))
+    setEditando(prev => ({
+      ...prev,
+      dia: novoDia,
+      funcionarios: prev.funcionarios.filter(id => ativosNovoDia.some(f => f.id === id)),
+    }))
+  }
+
+  function toggleFuncEdicao(id) {
+    setEditando(prev => ({
+      ...prev,
+      funcionarios: prev.funcionarios.includes(id)
+        ? prev.funcionarios.filter(x => x !== id)
+        : [...prev.funcionarios, id],
+    }))
+  }
+
+  async function salvarEdicao() {
+    if (!editando) return
+    if (!editando.valor || parseFloat(editando.valor) <= 0) {
+      setMsg({ tipo: 'erro', texto: 'Informe um valor válido.' })
+      return
+    }
+    if (!editando.funcionarios.length) {
+      setMsg({ tipo: 'erro', texto: 'Selecione ao menos um funcionário para o rateio.' })
+      return
+    }
+
+    const { error } = await supabase
+      .from('rh_comissoes')
+      .update({
+        dia: parseInt(editando.dia),
+        valor: parseFloat(editando.valor),
+        funcionarios: editando.funcionarios,
+      })
+      .eq('id', editando.id)
+
+    if (error) {
+      setMsg({ tipo: 'erro', texto: error.message })
+      return
+    }
+
+    setMsg({ tipo: 'ok', texto: 'Lançamento atualizado.' })
+    setEditando(null)
+    carregarLancamentos()
+    setTimeout(() => setMsg(null), 3000)
   }
 
   const totalMes = lancamentos.reduce((a, l) => a + parseFloat(l.valor), 0)
@@ -262,26 +327,80 @@ export default function TabComissoes() {
       )}
 
       <div style={card}>
-        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>
-          Lançamentos - Total: R$ {totalMes.toFixed(2).replace('.', ',')}
-        </div>
-        {loading ? (
-          <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>Carregando...</div>
-        ) : lancamentos.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>Nenhum lançamento neste mês.</div>
-        ) : lancamentos.map(l => {
-          const nomes = funcionariosNoRateio(l).map(f => f.nome.split(' ')[0]).join(', ') || 'Nenhum funcionário ativo no rateio'
-          return (
-            <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
-              <div>
-                <span style={{ fontWeight: 700, marginRight: 8 }}>Dia {String(l.dia).padStart(2,'0')}</span>
-                <span style={{ color: '#16a34a', fontWeight: 600 }}>R$ {parseFloat(l.valor).toFixed(2).replace('.', ',')}</span>
-                <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>{nomes}</div>
-              </div>
-              <button onClick={() => handleDeletar(l.id)} style={{ background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>Excluir</button>
-            </div>
-          )
-        })}
+        <button onClick={() => setLancamentosAberto(v => !v)} style={accordionBtn}>
+          <span>Lançamentos</span>
+          <span style={{ color: '#16a34a', fontWeight: 800 }}>
+            R$ {totalMes.toFixed(2).replace('.', ',')} {lancamentosAberto ? '▲' : '▼'}
+          </span>
+        </button>
+        {lancamentosAberto && (
+          <div style={{ marginTop: 12 }}>
+            {loading ? (
+              <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>Carregando...</div>
+            ) : lancamentos.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#888', padding: 20 }}>Nenhum lançamento neste mês.</div>
+            ) : lancamentos.map(l => {
+              const nomes = funcionariosNoRateio(l).map(f => f.nome.split(' ')[0]).join(', ') || 'Nenhum funcionário ativo no rateio'
+              const ativosEdicao = editando?.id === l.id
+                ? todosFuncionarios.filter(f => eraAtivoNaData(f, mes, parseInt(editando.dia)))
+                : []
+              return (
+                <div key={l.id} style={{ padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                    <div>
+                      <span style={{ fontWeight: 700, marginRight: 8 }}>Dia {String(l.dia).padStart(2,'0')}</span>
+                      <span style={{ color: '#16a34a', fontWeight: 600 }}>R$ {parseFloat(l.valor).toFixed(2).replace('.', ',')}</span>
+                      <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>{nomes}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => iniciarEdicao(l)} style={btnEdit}>Editar</button>
+                      <button onClick={() => handleDeletar(l.id)} style={{ background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>Excluir</button>
+                    </div>
+                  </div>
+
+                  {editando?.id === l.id && (
+                    <div style={editBox}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, marginBottom: 10 }}>
+                        <div>
+                          <label style={lbl}>Dia</label>
+                          <select value={editando.dia} onChange={e => alterarDiaEdicao(e.target.value)} style={inp}>
+                            {Array.from({ length: diasNoMes(mes) }, (_, i) => i + 1).map(d => (
+                              <option key={d} value={d}>{String(d).padStart(2, '0')}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={lbl}>Valor total (R$)</label>
+                          <input style={inp} type="number" step="0.01" min="0" value={editando.valor} onChange={e => setEditando(prev => ({ ...prev, valor: e.target.value }))} />
+                        </div>
+                      </div>
+
+                      <label style={lbl}>Funcionários neste lançamento</label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                        {ativosEdicao.map(f => (
+                          <label key={f.id} style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            background: editando.funcionarios.includes(f.id) ? '#fce4e6' : '#f3f4f6',
+                            borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 13,
+                            border: editando.funcionarios.includes(f.id) ? '1.5px solid #e63946' : '1.5px solid transparent'
+                          }}>
+                            <input type="checkbox" checked={editando.funcionarios.includes(f.id)} onChange={() => toggleFuncEdicao(f.id)} style={{ cursor: 'pointer' }} />
+                            {f.nome.split(' ')[0]}
+                          </label>
+                        ))}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={() => setEditando(null)} style={btnCancel}>Cancelar</button>
+                        <button onClick={salvarEdicao} style={btnSave}>Salvar edição</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -293,6 +412,11 @@ const sel = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5
 const lbl = { display: 'block', fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 6 }
 const inp = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 14, boxSizing: 'border-box', outline: 'none' }
 const btnPrimary = (dis) => ({ width: '100%', padding: 12, background: dis ? '#ccc' : '#e63946', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: dis ? 'default' : 'pointer' })
+const accordionBtn = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, border: 'none', background: 'transparent', padding: 0, margin: 0, fontSize: 15, fontWeight: 800, cursor: 'pointer', textAlign: 'left' }
+const editBox = { marginTop: 10, background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12 }
+const btnEdit = { background: '#f3f4f6', color: '#555', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }
+const btnCancel = { background: '#f3f4f6', color: '#555', border: 'none', borderRadius: 7, padding: '8px 12px', fontSize: 12, cursor: 'pointer' }
+const btnSave = { background: '#e63946', color: '#fff', border: 'none', borderRadius: 7, padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }
 
 
 
