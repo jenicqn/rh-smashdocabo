@@ -670,52 +670,54 @@ export default function TelaFuncionario({ usuario, onLogout }) {
               )}
             </section>
 
-            <section style={{ ...card, padding: isMobile ? 14 : 16 }}>
-              <button onClick={() => setEspelhoAberto(v => !v)} style={accordionBtn}>
-                <span>Espelho de ponto</span>
-                <span style={{ color: '#555', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{pontos.length} registro(s) {espelhoAberto ? '▲' : '▼'}</span>
-              </button>
-              {espelhoAberto && (
-                <>
-                  <button onClick={baixarEspelhoPdf} style={pdfBtn}>Baixar PDF</button>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
-                    <div style={bancoBox}>
-                      <div style={bancoLabel}>Banco de horas mês atual</div>
-                      <div style={bancoValor}>{bancoMes}</div>
+            {mesFechado && (
+              <section style={{ ...card, padding: isMobile ? 14 : 16 }}>
+                <button onClick={() => setEspelhoAberto(v => !v)} style={accordionBtn}>
+                  <span>Espelho de ponto</span>
+                  <span style={{ color: '#555', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{pontos.length} registro(s) {espelhoAberto ? '▲' : '▼'}</span>
+                </button>
+                {espelhoAberto && (
+                  <>
+                    <button onClick={baixarEspelhoPdf} style={pdfBtn}>Baixar PDF</button>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
+                      <div style={bancoBox}>
+                        <div style={bancoLabel}>Banco de horas mês atual</div>
+                        <div style={bancoValor}>{bancoMes}</div>
+                      </div>
+                      <div style={bancoBox}>
+                        <div style={bancoLabel}>Banco do semestre</div>
+                        <div style={bancoValor}>{bancoTotal}</div>
+                      </div>
                     </div>
-                    <div style={bancoBox}>
-                      <div style={bancoLabel}>Banco do semestre</div>
-                      <div style={bancoValor}>{bancoTotal}</div>
+                    {pontos.length === 0 ? (
+                      <div style={empty}>Nenhum registro de ponto neste mês.</div>
+                    ) : pontos.map(p => (
+                      <div key={p.id} style={{ display: isMobile ? 'block' : 'grid', gridTemplateColumns: isMobile ? undefined : '74px 110px 1fr auto', gap: 10, alignItems: 'center', padding: isMobile ? '12px 10px' : '10px 0 10px 10px', borderBottom: '1px solid #f3f4f6', borderLeft: p.horas_atraso ? '4px solid #dc2626' : p.tipo_dia === 'normal' ? '4px solid #16a34a' : '4px solid #e5e7eb' }}>
+                    <div>
+                      <strong>{new Date(p.dia + 'T12:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</strong>
+                      <span style={{ color: '#888', fontSize: 11, marginLeft: 6 }}>{p.dia_semana}</span>
                     </div>
-                  </div>
-                  {pontos.length === 0 ? (
-                    <div style={empty}>Nenhum registro de ponto neste mês.</div>
-                  ) : pontos.map(p => (
-                    <div key={p.id} style={{ display: isMobile ? 'block' : 'grid', gridTemplateColumns: isMobile ? undefined : '74px 110px 1fr auto', gap: 10, alignItems: 'center', padding: isMobile ? '12px 10px' : '10px 0 10px 10px', borderBottom: '1px solid #f3f4f6', borderLeft: p.horas_atraso ? '4px solid #dc2626' : p.tipo_dia === 'normal' ? '4px solid #16a34a' : '4px solid #e5e7eb' }}>
-                  <div>
-                    <strong>{new Date(p.dia + 'T12:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</strong>
-                    <span style={{ color: '#888', fontSize: 11, marginLeft: 6 }}>{p.dia_semana}</span>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>Horário de entrada</div>
-                    <div style={{ fontSize: 13, color: '#111', fontWeight: 800 }}>{p.tipo_dia === 'normal' ? horarioPrevistoDoPonto(p, funcionario) : '--'}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>
-                      {p.tipo_dia === 'normal'
-                        ? (horáriosDoPonto(p) || '--')
-                        : p.tipo_dia === 'folga' ? 'Folga' : p.tipo_dia === 'feriado' ? 'Feriado' : 'Sem marcação'}
+                    <div>
+                      <div style={{ fontSize: 10, color: '#888', fontWeight: 700 }}>Horário de entrada</div>
+                      <div style={{ fontSize: 13, color: '#111', fontWeight: 800 }}>{p.tipo_dia === 'normal' ? horarioPrevistoDoPonto(p, funcionario) : '--'}</div>
                     </div>
-                  </div>
-                  <div style={{ textAlign: 'right', fontSize: 12, minWidth: 54 }}>
-                    {p.total_trabalhado && <div>{p.total_trabalhado}</div>}
-                    {p.horas_atraso && <div style={{ color: '#dc2626', fontWeight: 800 }}>{p.horas_atraso}</div>}
-                  </div>
+                    <div>
+                      <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>
+                        {p.tipo_dia === 'normal'
+                          ? (horáriosDoPonto(p) || '--')
+                          : p.tipo_dia === 'folga' ? 'Folga' : p.tipo_dia === 'feriado' ? 'Feriado' : 'Sem marcação'}
+                      </div>
                     </div>
-                  ))}
-                </>
-              )}
-            </section>
+                    <div style={{ textAlign: 'right', fontSize: 12, minWidth: 54 }}>
+                      {p.total_trabalhado && <div>{p.total_trabalhado}</div>}
+                      {p.horas_atraso && <div style={{ color: '#dc2626', fontWeight: 800 }}>{p.horas_atraso}</div>}
+                    </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </section>
+            )}
               </>
             )}
           </>
