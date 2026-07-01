@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS public.rh_ajustes_mensais (
   mes TEXT NOT NULL,
   comissao NUMERIC(10,2) DEFAULT 0,
   banco_horas TEXT,
+  banco_pago BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(funcionario_id, mes)
@@ -16,6 +17,9 @@ ALTER TABLE public.rh_ajustes_mensais ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.rh_ajustes_mensais
 ALTER COLUMN banco_horas DROP DEFAULT;
+
+ALTER TABLE public.rh_ajustes_mensais
+ADD COLUMN IF NOT EXISTS banco_pago BOOLEAN DEFAULT false;
 
 DROP POLICY IF EXISTS "allow_all_rh_ajustes" ON public.rh_ajustes_mensais;
 

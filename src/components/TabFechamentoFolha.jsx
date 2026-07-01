@@ -42,6 +42,19 @@ function formatarMoeda(valor) {
   return `R$ ${(valor || 0).toFixed(2).replace('.', ',')}`
 }
 
+function bancoDoMesPeloArquivo(pontos) {
+  const ordenados = [...pontos].sort((a, b) => String(a.dia || '').localeCompare(String(b.dia || '')))
+  for (let i = ordenados.length - 1; i >= 0; i--) {
+    const saldo = String(ordenados[i].banco_saldo || '').trim()
+    if (saldo) return saldo
+  }
+  for (let i = ordenados.length - 1; i >= 0; i--) {
+    const saldo = String(ordenados[i].banco_total || '').trim()
+    if (saldo) return saldo
+  }
+  return '00:00'
+}
+
 function nomeMes(mes) {
   const [ano, m] = mes.split('-')
   return `${MESES[parseInt(m) - 1]} ${ano}`
@@ -106,12 +119,13 @@ export default function TabFechamentoFolha() {
     const inicio = `${mes}-01`
     const fim = `${mes}-${new Date(ano, m, 0).getDate()}`
 
-    const [funcRes, pontoRes, comRes, faltasRes, feriadosRes] = await Promise.all([
+    const [funcRes, pontoRes, comRes, faltasRes, feriadosRes, ajustesRes] = await Promise.all([
       supabase.from('rh_funcionarios').select('*').order('nome'),
       supabase.from('registros_ponto').select('*').gte('dia', inicio).lte('dia', fim).order('dia'),
       supabase.from('rh_comissoes').select('*').eq('mes', mes).order('dia'),
       supabase.from('rh_faltas').select('*').gte('data', inicio).lte('data', fim),
       supabase.from('rh_feriados').select('*').gte('data', inicio).lte('data', fim).order('data'),
+      supabase.from('rh_ajustes_mensais').select('*').eq('mes', mes),
     ])
 
     if (feriadosRes.error) {
@@ -123,6 +137,7 @@ export default function TabFechamentoFolha() {
     const comissoes = comRes.data || []
     const faltas = faltasRes.data || []
     const feriadosMes = feriadosRes.data || []
+    const ajustesPorFuncionario = Object.fromEntries((ajustesRes.data || []).map(a => [a.funcionario_id, a]))
     const datasFeriado = new Set(feriadosMes.map(f => f.data))
 
     const porFuncionario = funcs.map(func => {
@@ -155,6 +170,8 @@ export default function TabFechamentoFolha() {
         return acc + tempoParaMinutos(p.extra_100)
       }, 0)
       const adicionalNoturno = pontosFunc.reduce((acc, p) => acc + tempoParaMinutos(p.total_noturno), 0)
+      const ajusteMes = ajustesPorFuncionario[func.id] || {}
+      const bancoHorasMes = ajusteMes.banco_horas || bancoDoMesPeloArquivo(pontosFunc)
 
       return {
         id: func.id,
@@ -168,6 +185,8 @@ export default function TabFechamentoFolha() {
         feriadosTrabalhados,
         feriadosNaoTrabalhados,
         adicionalNoturno,
+        bancoHorasMes,
+        bancoPago: !!ajusteMes.banco_pago,
         comissaoLiquida,
         atestados,
         faltas: faltasInjustificadas,
@@ -178,6 +197,26 @@ export default function TabFechamentoFolha() {
     setFeriados(feriadosMes)
     setLinhas(porFuncionario)
     setLoading(false)
+  }
+
+  async function alterarBancoPago(linha, bancoPago) {
+    setLinhas(lista => lista.map(item => item.id === linha.id ? { ...item, bancoPago } : item))
+    const { error } = await supabase
+      .from('rh_ajustes_mensais')
+      .upsert({
+        funcionario_id: linha.id,
+        mes,
+        banco_pago: bancoPago,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'funcionario_id,mes' })
+
+    if (error) {
+      setLinhas(lista => lista.map(item => item.id === linha.id ? { ...item, bancoPago: !bancoPago } : item))
+      setMsg({ tipo: 'erro', texto: `Não foi possível salvar Banco pago: ${error.message}. Rode o SQL supabase_ajustes_mensais.sql no Supabase.` })
+      return
+    }
+
+    setMsg({ tipo: 'ok', texto: `Banco de ${linha.nome.split(' ')[0]} marcado como ${bancoPago ? 'pago' : 'não pago'}.` })
   }
 
   async function salvarFeriado() {
@@ -201,10 +240,10 @@ export default function TabFechamentoFolha() {
   }
 
   function gerarTabelaTexto(separador = ';') {
-    const cabecalho = ['Funcionário', 'CPF', 'Cargo', 'Dias de ponto', 'Horas extras', 'Extra 100%', 'Feriados trabalhados', 'Feriados não trabalhados', 'Adc. noturno', 'Comissão', 'Atestados', 'Faltas']
+    const cabecalho = ['Funcionário', 'CPF', 'Cargo', 'Dias de ponto', 'Horas extras', 'Extra 100%', 'Banco do mês', 'Banco pago', 'Feriados trabalhados', 'Feriados não trabalhados', 'Adc. noturno', 'Comissão', 'Atestados', 'Faltas']
     const corpo = linhas.map(l => [
       l.nome, l.cpf, l.cargo, l.diasPonto, formatarHoras(l.horasExtrasTotal), formatarHoras(l.horasExtras100),
-      l.feriadosTrabalhados, l.feriadosNaoTrabalhados, formatarHoras(l.adicionalNoturno), formatarMoeda(l.comissaoLiquida), l.atestados, l.faltas,
+      l.bancoHorasMes, l.bancoPago ? 'Sim' : 'Não', l.feriadosTrabalhados, l.feriadosNaoTrabalhados, formatarHoras(l.adicionalNoturno), formatarMoeda(l.comissaoLiquida), l.atestados, l.faltas,
     ].map(valor => `"${String(valor ?? '').replace(/"/g, '""')}"`).join(separador))
     return [cabecalho.map(h => `"${h}"`).join(separador), ...corpo].join('\n')
   }
@@ -240,6 +279,8 @@ export default function TabFechamentoFolha() {
         <td>${l.diasPonto} dia(s)</td>
         <td>${formatarHoras(l.horasExtrasTotal)}</td>
         <td>${formatarHoras(l.horasExtras100)}</td>
+        <td>${l.bancoHorasMes}</td>
+        <td>${l.bancoPago ? 'Sim' : 'Não'}</td>
         <td>${l.feriadosTrabalhados} trab.<br><small>${l.feriadosNaoTrabalhados} sem trabalho</small></td>
         <td>${formatarHoras(l.adicionalNoturno)}</td>
         <td>${formatarMoeda(l.comissaoLiquida)}</td>
@@ -281,8 +322,8 @@ export default function TabFechamentoFolha() {
           <h2>Feriados cadastrados</h2>
           <ul>${feriadosHtml || '<li>Nenhum feriado cadastrado.</li>'}</ul>
           <table>
-            <thead><tr><th>Funcionário</th><th>Ponto</th><th>Horas extras</th><th>Extra 100%</th><th>Feriados</th><th>Adc. noturno</th><th>Comissão</th><th>Atestados</th><th>Faltas</th></tr></thead>
-            <tbody>${linhasHtml || '<tr><td colspan="9">Nenhum dado encontrado.</td></tr>'}</tbody>
+            <thead><tr><th>Funcionário</th><th>Ponto</th><th>Horas extras</th><th>Extra 100%</th><th>Banco do mês</th><th>Banco pago</th><th>Feriados</th><th>Adc. noturno</th><th>Comissão</th><th>Atestados</th><th>Faltas</th></tr></thead>
+            <tbody>${linhasHtml || '<tr><td colspan="11">Nenhum dado encontrado.</td></tr>'}</tbody>
           </table>
           <script>window.onload = function() { window.print(); }</script>
         </body>
@@ -353,10 +394,10 @@ export default function TabFechamentoFolha() {
               <div style={empty}>Nenhum funcionário encontrado.</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 880 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 1080 }}>
                   <thead>
                     <tr style={{ background: '#f3f4f6' }}>
-                      {['Funcionário', 'Ponto', 'Horas extras', 'Extra 100%', 'Feriados', 'Adc. noturno', 'Comissão', 'Atestados', 'Faltas'].map(h => <th key={h} style={th}>{h}</th>)}
+                      {['Funcionário', 'Ponto', 'Horas extras', 'Extra 100%', 'Banco do mês', 'Banco pago', 'Feriados', 'Adc. noturno', 'Comissão', 'Atestados', 'Faltas'].map(h => <th key={h} style={th}>{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -366,6 +407,19 @@ export default function TabFechamentoFolha() {
                         <td style={td}>{l.diasPonto} dia(s)</td>
                         <td style={td}>{formatarHoras(l.horasExtrasTotal)}</td>
                         <td style={{ ...td, fontWeight: l.horasExtras100 ? 800 : 400 }}>{formatarHoras(l.horasExtras100)}</td>
+                        <td style={{ ...td, fontWeight: 800 }}>{l.bancoHorasMes}</td>
+                        <td style={td}>
+                          <label style={toggleWrap}>
+                            <input
+                              type="checkbox"
+                              checked={l.bancoPago}
+                              onChange={e => alterarBancoPago(l, e.target.checked)}
+                            />
+                            <span style={{ color: l.bancoPago ? '#16a34a' : '#888', fontWeight: 800 }}>
+                              {l.bancoPago ? 'Pago' : 'Não pago'}
+                            </span>
+                          </label>
+                        </td>
                         <td style={td}><div>{l.feriadosTrabalhados} trabalhado(s)</div><div style={{ color: '#888', fontSize: 11 }}>{l.feriadosNaoTrabalhados} sem trabalho</div></td>
                         <td style={td}>{formatarHoras(l.adicionalNoturno)}</td>
                         <td style={{ ...td, color: '#16a34a', fontWeight: 800 }}>{formatarMoeda(l.comissaoLiquida)}</td>
@@ -402,6 +456,7 @@ const empty = { color: '#888', fontSize: 13, textAlign: 'center', padding: 30 }
 const emptySmall = { color: '#888', fontSize: 12, textAlign: 'center', padding: 14, background: '#f9fafb', borderRadius: 8 }
 const th = { padding: '9px 10px', textAlign: 'left', fontWeight: 800, color: '#444', whiteSpace: 'nowrap' }
 const td = { padding: '9px 10px', verticalAlign: 'top', color: '#555' }
+const toggleWrap = { display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: 'pointer' }
 const btnDark = { background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }
 const btnGhost = { background: '#f3f4f6', color: '#333', border: 'none', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }
 const btnFull = { width: '100%', background: '#e63946', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontWeight: 800, cursor: 'pointer' }
