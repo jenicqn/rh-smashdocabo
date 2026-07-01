@@ -575,16 +575,19 @@ export default function TelaFuncionario({ usuario, onLogout }) {
           ⚠️ SITE E MODELO DE PREMIAÇÃO EM FASE DE TESTES. AS INFORMAÇÕES PODEM SOFRER ALTERAÇÕES. ⚠️
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
           <button onClick={() => setAbaPortal('painel')} style={portalTabBtn(abaPortal === 'painel')}>Painel</button>
           <button onClick={() => setAbaPortal('bonificacao')} style={portalTabBtn(abaPortal === 'bonificacao')}>Bonificação</button>
           <button onClick={() => setAbaPortal('documentos')} style={portalTabBtn(abaPortal === 'documentos')}>Documentos</button>
+          <button onClick={() => setAbaPortal('sugestoes')} style={portalTabBtn(abaPortal === 'sugestoes')}>Sugestões</button>
         </div>
 
         {abaPortal === 'documentos' ? (
           <DocumentosPortal documentos={documentos} isMobile={isMobile} />
         ) : abaPortal === 'bonificacao' ? (
           <BonificacaoPortal funcionario={funcionario} isMobile={isMobile} />
+        ) : abaPortal === 'sugestoes' ? (
+          <SugestoesPortal funcionario={funcionario} usuario={usuario} isMobile={isMobile} />
         ) : (
           <>
             <select value={mes} onChange={e => setMes(e.target.value)} style={sel}>
@@ -680,7 +683,12 @@ export default function TelaFuncionario({ usuario, onLogout }) {
             {mesFechado && (
               <section style={{ ...card, padding: isMobile ? 14 : 16 }}>
                 <button onClick={() => setEspelhoAberto(v => !v)} style={accordionBtn}>
-                  <span>Espelho de ponto</span>
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                    <span>Espelho de ponto</span>
+                    <span style={{ color: '#666', fontSize: 12, fontWeight: 700 }}>
+                      Horário em contrato: {funcionario?.horario_entrada || '16:00'}
+                    </span>
+                  </span>
                   <span style={{ color: '#555', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap' }}>{pontos.length} registro(s) {espelhoAberto ? '▲' : '▼'}</span>
                 </button>
                 {espelhoAberto && (
@@ -765,6 +773,109 @@ function DocumentosPortal({ documentos, isMobile }) {
           </a>
         </div>
       ))}
+    </section>
+  )
+}
+
+function SugestoesPortal({ funcionario, usuario, isMobile }) {
+  const [tipo, setTipo] = useState('Sugestão')
+  const [mensagem, setMensagem] = useState('')
+  const [identificado, setIdentificado] = useState(true)
+  const [enviando, setEnviando] = useState(false)
+  const [status, setStatus] = useState(null)
+
+  async function enviarFeedback(e) {
+    e.preventDefault()
+    const texto = mensagem.trim()
+    if (!texto) {
+      setStatus({ tipo: 'erro', texto: 'Escreva sua mensagem antes de enviar.' })
+      return
+    }
+
+    setEnviando(true)
+    setStatus(null)
+
+    const { error } = await supabase.from('rh_feedbacks_funcionarios').insert({
+      funcionario_id: funcionario?.id || usuario?.id || null,
+      funcionario_nome: identificado ? (funcionario?.nome || usuario?.nome || null) : null,
+      cpf: identificado ? (funcionario?.cpf || usuario?.cpf || null) : null,
+      tipo,
+      mensagem: texto,
+      identificado,
+      status: 'novo',
+    })
+
+    setEnviando(false)
+
+    if (error) {
+      setStatus({ tipo: 'erro', texto: `Não foi possível enviar agora: ${error.message}` })
+      return
+    }
+
+    setMensagem('')
+    setTipo('Sugestão')
+    setIdentificado(true)
+    setStatus({ tipo: 'ok', texto: 'Mensagem enviada. Obrigado por ajudar a melhorar a empresa.' })
+  }
+
+  return (
+    <section style={{ ...card, padding: isMobile ? 14 : 18 }}>
+      <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 6 }}>Sugestões e feedbacks</div>
+      <div style={{ color: '#666', fontSize: 13, marginBottom: 16, lineHeight: 1.45 }}>
+        Use este espaço para enviar ideias, melhorias, dúvidas ou feedbacks para a empresa.
+      </div>
+
+      <form onSubmit={enviarFeedback}>
+        <label style={labelForm}>Tipo de mensagem</label>
+        <select value={tipo} onChange={e => setTipo(e.target.value)} style={fieldForm}>
+          <option>Sugestão</option>
+          <option>Feedback</option>
+          <option>Melhoria</option>
+          <option>Dúvida</option>
+          <option>Outro</option>
+        </select>
+
+        <label style={labelForm}>Mensagem</label>
+        <textarea
+          value={mensagem}
+          onChange={e => setMensagem(e.target.value)}
+          rows={isMobile ? 7 : 6}
+          maxLength={1500}
+          placeholder="Escreva aqui sua sugestão ou feedback..."
+          style={{ ...fieldForm, minHeight: 140, resize: 'vertical', lineHeight: 1.4 }}
+        />
+        <div style={{ color: '#777', fontSize: 12, textAlign: 'right', marginTop: -8, marginBottom: 12 }}>
+          {mensagem.length}/1500
+        </div>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#444', fontSize: 13, fontWeight: 700, marginBottom: 14 }}>
+          <input
+            type="checkbox"
+            checked={identificado}
+            onChange={e => setIdentificado(e.target.checked)}
+          />
+          Enviar identificado
+        </label>
+
+        {status && (
+          <div style={{
+            borderRadius: 8,
+            padding: 11,
+            marginBottom: 12,
+            fontSize: 13,
+            fontWeight: 700,
+            color: status.tipo === 'ok' ? '#166534' : '#991b1b',
+            background: status.tipo === 'ok' ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${status.tipo === 'ok' ? '#bbf7d0' : '#fecaca'}`,
+          }}>
+            {status.texto}
+          </div>
+        )}
+
+        <button type="submit" disabled={enviando} style={{ width: '100%', border: 'none', borderRadius: 8, padding: 12, background: enviando ? '#9ca3af' : '#e63946', color: '#fff', fontWeight: 900, cursor: enviando ? 'not-allowed' : 'pointer' }}>
+          {enviando ? 'Enviando...' : 'Enviar mensagem'}
+        </button>
+      </form>
     </section>
   )
 }
@@ -859,4 +970,6 @@ const bancoLabel = { fontSize: 11, color: '#777', marginBottom: 4 }
 const bancoValor = { fontSize: 18, fontWeight: 800, color: '#111' }
 const infoBox = { background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: 12 }
 const infoValor = { fontSize: 20, fontWeight: 900, color: '#111', lineHeight: 1.1 }
+const labelForm = { display: 'block', color: '#444', fontSize: 12, fontWeight: 800, marginBottom: 6 }
+const fieldForm = { width: '100%', boxSizing: 'border-box', border: '1.5px solid #ddd', borderRadius: 8, padding: '10px 12px', fontSize: 14, marginBottom: 12, background: '#fff' }
 const portalTabBtn = (active) => ({ border: `1.5px solid ${active ? '#e63946' : '#e5e7eb'}`, background: active ? '#fff1f2' : '#fff', color: active ? '#e63946' : '#555', borderRadius: 8, padding: '11px 12px', fontSize: 14, fontWeight: 800, cursor: 'pointer' })
