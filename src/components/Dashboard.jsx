@@ -9,6 +9,7 @@ import TabFuncionarios from './TabFuncionarios'
 import TabPortal from './TabPortal'
 import TabAjustesMensais from './TabAjustesMensais'
 import TabDocumentos from './TabDocumentos'
+import TabFechamentoFolha from './TabFechamentoFolha'
 
 const ABAS = [
   { id: 'ponto', label: 'Ponto' },
@@ -18,6 +19,7 @@ const ABAS = [
   { id: 'advertencias', label: 'Advertências' },
   { id: 'funcionários', label: 'Funcionários' },
   { id: 'ajustes', label: 'Ajustes' },
+  { id: 'fechamento', label: 'Fechamento de folha' },
   { id: 'documentos', label: 'Documentos' },
   { id: 'portal', label: 'Portal' },
 ]
@@ -47,7 +49,7 @@ export default function Dashboard({ onLogout }) {
           }}>{a.label}</button>
         ))}
       </div>
-      <div style={{ padding: '24px 16px', maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ padding: '24px 16px', maxWidth: aba === 'fechamento' ? 1220 : 900, margin: '0 auto' }}>
         {aba === 'ponto' && <TabPonto />}
         {aba === 'comissões' && <TabComissoes />}
         {aba === 'zonas' && <TabZonas />}
@@ -55,6 +57,7 @@ export default function Dashboard({ onLogout }) {
         {aba === 'advertencias' && <TabAdvertencias />}
         {aba === 'funcionários' && <TabFuncionarios />}
         {aba === 'ajustes' && <TabAjustesMensais />}
+        {aba === 'fechamento' && <TabFechamentoFolha />}
         {aba === 'documentos' && <TabDocumentos />}
         {aba === 'portal' && <TabPortal />}
       </div>
