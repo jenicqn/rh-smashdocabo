@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 
 const TIPOS = {
@@ -25,11 +25,13 @@ function gerarOpcoesMes(n = 12) {
 }
 
 export default function TabFaltas() {
+  const fileRef = useRef(null)
   const [funcionarios, setFuncionarios] = useState([])
   const [faltas, setFaltas] = useState([])
   const [mes, setMes] = useState(mesAtual())
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ funcionario_id: '', data: '', tipo: 'injustificada', motivo: '' })
+  const [arquivo, setArquivo] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState(null)
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -57,27 +59,61 @@ export default function TabFaltas() {
     setLoading(false)
   }
 
+  async function enviarDocumento() {
+    if (!arquivo) return { path: null, nome: null }
+    const nomeSeguro = arquivo.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w.-]+/g, '-')
+      .toLowerCase()
+    const path = `${form.funcionario_id}/${form.data}-${Date.now()}-${nomeSeguro}`
+    const { error } = await supabase.storage
+      .from('documentos-faltas')
+      .upload(path, arquivo, { upsert: true, contentType: arquivo.type || undefined })
+    if (error) throw error
+    return { path, nome: arquivo.name }
+  }
+
   async function salvar() {
     if (!form.funcionario_id || !form.data) {
-      setMsg({ tipo: 'erro', texto: 'Selecione o funcionário e a data.' }); return
+      setMsg({ tipo: 'erro', texto: 'Selecione o funcionário e a data.' })
+      return
     }
     setSalvando(true)
-    const { error } = await supabase.from('rh_faltas').insert({
-      funcionario_id: form.funcionario_id,
-      data: form.data,
-      tipo: form.tipo,
-      motivo: form.motivo || null,
-    })
-    if (error) {
-      setMsg({ tipo: 'erro', texto: error.message })
-    } else {
+    try {
+      const documento = await enviarDocumento()
+      const { error } = await supabase.from('rh_faltas').insert({
+        funcionario_id: form.funcionario_id,
+        data: form.data,
+        tipo: form.tipo,
+        motivo: form.motivo || null,
+        documento_path: documento.path,
+        documento_nome: documento.nome,
+      })
+      if (error) throw error
       setMsg({ tipo: 'ok', texto: 'Falta registrada!' })
       setForm({ funcionario_id: '', data: '', tipo: 'injustificada', motivo: '' })
+      setArquivo(null)
+      if (fileRef.current) fileRef.current.value = ''
       setMostrarForm(false)
       carregarFaltas()
       setTimeout(() => setMsg(null), 3000)
+    } catch (error) {
+      setMsg({ tipo: 'erro', texto: error.message || 'Não foi possível salvar o registro.' })
+    } finally {
+      setSalvando(false)
     }
-    setSalvando(false)
+  }
+
+  async function abrirDocumento(path) {
+    const { data, error } = await supabase.storage
+      .from('documentos-faltas')
+      .createSignedUrl(path, 60 * 5)
+    if (error) {
+      setMsg({ tipo: 'erro', texto: error.message })
+      return
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
   }
 
   async function deletar(id) {
@@ -106,10 +142,7 @@ export default function TabFaltas() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={h2}>Faltas</h2>
-        <button onClick={() => { setMostrarForm(!mostrarForm); setMsg(null) }} style={{
-          background: '#e63946', color: '#fff', border: 'none',
-          borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
-        }}>+ Registrar falta</button>
+        <button onClick={() => { setMostrarForm(!mostrarForm); setMsg(null) }} style={btnNovo}>+ Registrar falta</button>
       </div>
 
       {mostrarForm && (
@@ -136,17 +169,16 @@ export default function TabFaltas() {
             </div>
             <div style={{ gridColumn: '1/-1' }}>
               <label style={lbl}>Motivo / Observação <span style={{ color: '#888', fontWeight: 400 }}>(opcional)</span></label>
-              <input style={inp} placeholder="Ex: Não compareceu sem justificativa"
-                value={form.motivo} onChange={e => setForm(f => ({ ...f, motivo: e.target.value }))} />
+              <input style={inp} placeholder="Ex: Não compareceu sem justificativa" value={form.motivo} onChange={e => setForm(f => ({ ...f, motivo: e.target.value }))} />
+            </div>
+            <div style={{ gridColumn: '1/-1' }}>
+              <label style={lbl}>Documento <span style={{ color: '#888', fontWeight: 400 }}>(opcional)</span></label>
+              <input ref={fileRef} style={inp} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx" onChange={e => setArquivo(e.target.files?.[0] || null)} />
             </div>
           </div>
-          {msg && (
-            <div style={{ borderRadius: 8, padding: '10px 14px', marginBottom: 12, background: msg.tipo === 'ok' ? '#f0fdf4' : '#fef2f2', color: msg.tipo === 'ok' ? '#16a34a' : '#dc2626', fontSize: 13, fontWeight: 600 }}>
-              {msg.texto}
-            </div>
-          )}
+          {msg && <Mensagem msg={msg} />}
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            <button onClick={salvar} disabled={salvando} style={{ flex: 1, padding: 11, background: '#e63946', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={salvar} disabled={salvando} style={{ flex: 1, padding: 11, background: '#e63946', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: salvando ? 'default' : 'pointer' }}>
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
             <button onClick={() => setMostrarForm(false)} style={{ padding: '11px 16px', background: '#f3f4f6', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Cancelar</button>
@@ -154,11 +186,12 @@ export default function TabFaltas() {
         </div>
       )}
 
+      {!mostrarForm && msg && <Mensagem msg={msg} />}
+
       <select value={mes} onChange={e => setMes(e.target.value)} style={sel}>
         {gerarOpcoesMes().map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
       </select>
 
-      {/* Resumo */}
       {faltas.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
           <div style={{ background: '#fef2f2', borderRadius: 10, padding: '12px 16px', border: '1px solid #fecaca' }}>
@@ -186,20 +219,18 @@ export default function TabFaltas() {
               </span>
             </div>
             {fs.map(f => (
-              <div key={f.id} style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '10px 12px', borderRadius: 8, marginBottom: 6,
-                background: TIPOS[f.tipo]?.bg || '#f9fafb',
-                border: `1px solid ${TIPOS[f.tipo]?.cor}30`
-              }}>
+              <div key={f.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: 8, marginBottom: 6, background: TIPOS[f.tipo]?.bg || '#f9fafb', border: `1px solid ${TIPOS[f.tipo]?.cor}30` }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: f.motivo ? 4 : 0 }}>
-                    <span style={{ background: TIPOS[f.tipo]?.cor, color: '#fff', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
-                      {TIPOS[f.tipo]?.label}
-                    </span>
+                    <span style={{ background: TIPOS[f.tipo]?.cor, color: '#fff', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{TIPOS[f.tipo]?.label}</span>
                     <span style={{ color: '#888', fontSize: 12 }}>{formatData(f.data)}</span>
                   </div>
                   {f.motivo && <div style={{ fontSize: 13, color: '#555' }}>{f.motivo}</div>}
+                  {f.documento_path && (
+                    <button onClick={() => abrirDocumento(f.documento_path)} style={btnDoc}>
+                      Abrir documento{f.documento_nome ? `: ${f.documento_nome}` : ''}
+                    </button>
+                  )}
                 </div>
                 <button onClick={() => deletar(f.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 12 }}>Excluir</button>
               </div>
@@ -211,11 +242,18 @@ export default function TabFaltas() {
   )
 }
 
+function Mensagem({ msg }) {
+  return (
+    <div style={{ borderRadius: 8, padding: '10px 14px', marginBottom: 12, background: msg.tipo === 'ok' ? '#f0fdf4' : '#fef2f2', color: msg.tipo === 'ok' ? '#16a34a' : '#dc2626', fontSize: 13, fontWeight: 600 }}>
+      {msg.texto}
+    </div>
+  )
+}
+
 const h2 = { margin: 0, fontSize: 18, fontWeight: 700 }
 const card = { background: '#fff', borderRadius: 12, padding: 16, border: '1px solid #e5e7eb', marginBottom: 16 }
+const btnNovo = { background: '#e63946', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }
 const sel = { width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 15, marginBottom: 16, background: '#fff', cursor: 'pointer' }
 const lbl = { display: 'block', fontSize: 13, fontWeight: 600, color: '#333', marginBottom: 6 }
 const inp = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #ddd', fontSize: 14, marginBottom: 14, boxSizing: 'border-box', outline: 'none' }
-
-
-
+const btnDoc = { display: 'inline-block', marginTop: 6, padding: 0, border: 'none', background: 'transparent', color: '#1d4ed8', fontSize: 12, fontWeight: 700, cursor: 'pointer', textAlign: 'left' }
