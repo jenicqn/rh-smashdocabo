@@ -180,28 +180,35 @@ function formatarBancoHoras(minutos) {
 }
 
 function bancoDoMesPeloArquivo(pontos) {
+  const ultimoComSaldo = [...pontos].reverse().find(p => String(p.banco_saldo || '').trim())
+  if (ultimoComSaldo?.banco_saldo) return ultimoComSaldo.banco_saldo
   const ultimoComTotal = [...pontos].reverse().find(p => String(p.banco_total || '').trim())
   return ultimoComTotal?.banco_total || '00:00'
 }
 
 function bancoDoMes(pontos, ajuste) {
-  if (String(ajuste?.banco_horas || '').trim()) return ajuste.banco_horas
+  const bancoAjustado = String(ajuste?.banco_horas || '').trim()
+  if (bancoAjustado && bancoAjustado !== '00:00') return ajuste.banco_horas
   return bancoDoMesPeloArquivo(pontos)
 }
 
 function calcularBancoSemestre(pontos, ajustes = []) {
-  const ultimoTotalPorMes = {}
+  const saldoPorMes = {}
   pontos.forEach(p => {
-    if (!p.dia || !String(p.banco_total || '').trim()) return
-    ultimoTotalPorMes[p.dia.slice(0, 7)] = p.banco_total
+    if (!p.dia) return
+    const saldoMes = String(p.banco_saldo || '').trim()
+    const totalFallback = String(p.banco_total || '').trim()
+    if (!saldoMes && !totalFallback) return
+    saldoPorMes[p.dia.slice(0, 7)] = saldoMes || totalFallback
   })
 
   ajustes.forEach(a => {
-    if (!a.mes || !String(a.banco_horas || '').trim()) return
-    ultimoTotalPorMes[a.mes] = a.banco_horas
+    const bancoAjustado = String(a.banco_horas || '').trim()
+    if (!a.mes || !bancoAjustado || bancoAjustado === '00:00') return
+    saldoPorMes[a.mes] = a.banco_horas
   })
 
-  const total = Object.values(ultimoTotalPorMes)
+  const total = Object.values(saldoPorMes)
     .reduce((acc, valor) => acc + tempoParaMinutos(valor), 0)
 
   return formatarBancoHoras(total)
@@ -365,7 +372,7 @@ export default function TelaFuncionario({ usuario, onLogout }) {
       supabase.from('rh_faltas').select('*').eq('funcionario_id', funcionario.id).gte('data', inicio).lte('data', fim),
       supabase.from('rh_advertencias').select('*').eq('funcionario_id', funcionario.id).gte('data', inicio).lte('data', fim),
       supabase.from('rh_funcionarios').select('*'),
-      supabase.from('registros_ponto').select('dia,banco_total').eq('funcionario_cpf', cpfLimpo).gte('dia', semestre.inicio).lte('dia', semestre.fim).order('dia'),
+      supabase.from('registros_ponto').select('dia,banco_saldo,banco_total').eq('funcionario_cpf', cpfLimpo).gte('dia', semestre.inicio).lte('dia', semestre.fim).order('dia'),
       supabase.from('rh_ajustes_mensais').select('*').eq('funcionario_id', funcionario.id).in('mes', [mes, mesAnt]),
       supabase.from('rh_ajustes_mensais').select('mes,banco_horas,comissao').eq('funcionario_id', funcionario.id).gte('mes', semestre.inicio.slice(0, 7)).lte('mes', semestre.fim.slice(0, 7)),
       supabase.from('rh_zonas').select('mes,premio').eq('funcionario_id', funcionario.id).gte('mes', semestre.inicio.slice(0, 7)).lte('mes', semestre.fim.slice(0, 7)),

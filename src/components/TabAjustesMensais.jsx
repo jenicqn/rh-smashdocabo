@@ -27,7 +27,7 @@ function moedaParaNumero(valor) {
 
 function normalizarBanco(valor) {
   const texto = String(valor || '').trim()
-  if (!texto) return '00:00'
+  if (!texto) return null
   const match = texto.match(/^([+-])?(\d{1,4}):(\d{2})$/)
   if (!match) return texto
   const sinal = match[1] === '-' ? '-' : ''
@@ -71,7 +71,7 @@ export default function TabAjustesMensais() {
       map[a.funcionario_id] = {
         id: a.id,
         comissao: formatarMoeda(a.comissao),
-        banco_horas: a.banco_horas || '00:00',
+        banco_horas: a.banco_horas || '',
       }
     })
     setAjustes(map)
