@@ -329,10 +329,19 @@ export default function TelaFuncionario({ usuario, onLogout }) {
   const [loading, setLoading] = useState(true)
   const [modalZona, setModalZona] = useState(null)
   const [notificacoesAberto, setNotificacoesAberto] = useState(false)
+  const [notificacoesLidas, setNotificacoesLidas] = useState([])
 
   useEffect(() => { carregarFuncionario() }, [])
   useEffect(() => { carregarDocumentos() }, [])
   useEffect(() => { if (funcionario) carregarDados() }, [mes, funcionario?.id])
+  useEffect(() => {
+    const cpfLimpo = usuario.cpf.replace(/\D/g, '')
+    try {
+      setNotificacoesLidas(JSON.parse(localStorage.getItem(`portal_notificacoes_lidas_${cpfLimpo}`) || '[]'))
+    } catch {
+      setNotificacoesLidas([])
+    }
+  }, [usuario.cpf])
 
   async function carregarFuncionario() {
     const cpfLimpo = usuario.cpf.replace(/\D/g, '')
@@ -535,28 +544,42 @@ export default function TelaFuncionario({ usuario, onLogout }) {
   const zonaFinalInfo = zonaFinal ? ZONAS.find(z => z.zona === zonaFinal.zona) : null
   const zonaAnteriorInfo = zonaAnterior ? ZONAS.find(z => z.zona === zonaAnterior.zona) : null
   const mesFechado = mesEstaFechado(mes)
-  const notificacoesFuncionario = [
+  const todasNotificacoesFuncionario = [
     ultimoUpload ? {
+      id: `upload-${ultimoUpload.uploaded_at}`,
       titulo: 'Dados atualizados',
       texto: `Última atualização em ${formatarDataHora(ultimoUpload.uploaded_at)}.`,
       acao: () => setAbaPortal('painel'),
     } : null,
     documentos.length > 0 ? {
+      id: `documentos-${documentos.map(d => `${d.id || d.url}-${d.created_at || ''}`).join('|')}`,
       titulo: `${documentos.length} documento(s) disponível(is)`,
       texto: 'Regulamentos, manuais e comunicados da empresa.',
       acao: () => setAbaPortal('documentos'),
     } : null,
     mesFechado ? {
+      id: `espelho-${mes}`,
       titulo: 'Espelho de ponto disponível',
       texto: 'O espelho do mês fechado já pode ser consultado.',
       acao: () => setAbaPortal('painel'),
     } : null,
     premiacaoSemestre > 0 ? {
+      id: `premiacao-${intervaloSemestre(mes).inicio}-${intervaloSemestre(mes).fim}-${premiacaoSemestre}`,
       titulo: 'Premiações do semestre',
       texto: `Você tem ${formatMoeda(premiacaoSemestre)} em premiações de zona no semestre.`,
       acao: () => setAbaPortal('painel'),
     } : null,
   ].filter(Boolean)
+  const notificacoesFuncionario = todasNotificacoesFuncionario.filter(item => !notificacoesLidas.includes(item.id))
+
+  function abrirNotificacaoFuncionario(item) {
+    const cpfLimpo = usuario.cpf.replace(/\D/g, '')
+    const novasLidas = [...new Set([...notificacoesLidas, item.id])]
+    setNotificacoesLidas(novasLidas)
+    localStorage.setItem(`portal_notificacoes_lidas_${cpfLimpo}`, JSON.stringify(novasLidas))
+    item.acao()
+    setNotificacoesAberto(false)
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'Inter, Arial, sans-serif' }}>
@@ -602,7 +625,7 @@ export default function TelaFuncionario({ usuario, onLogout }) {
               ) : notificacoesFuncionario.map((item, index) => (
                 <button
                   key={`${item.titulo}-${index}`}
-                  onClick={() => { item.acao(); setNotificacoesAberto(false) }}
+                  onClick={() => abrirNotificacaoFuncionario(item)}
                   style={notificacaoItem}
                 >
                   <strong>{item.titulo}</strong>
