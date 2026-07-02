@@ -29,6 +29,17 @@ export default function TabPortal() {
     return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
   }
 
+  function formatarUltimoAcesso(valor) {
+    if (!valor) return 'Nunca acessou'
+    return new Date(valor).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
   function preencherDeFuncionario(f) {
     setForm({ nome: f.nome, cpf: f.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4'), senha: '', ativo: true })
   }
@@ -143,6 +154,9 @@ export default function TabPortal() {
                 {u.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
                 {' - Senha: '}
                 <span style={{ fontFamily: 'monospace', color: '#333' }}>{u.senha}</span>
+              </div>
+              <div style={{ color: u.ultimo_acesso ? '#666' : '#dc2626', fontSize: 12, marginTop: 4, fontWeight: 600 }}>
+                Último acesso: {formatarUltimoAcesso(u.ultimo_acesso)}
               </div>
               {!u.ativo && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>Acesso bloqueado</div>}
             </div>

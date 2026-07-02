@@ -75,6 +75,15 @@ function formatarDataHora(valor) {
   })
 }
 
+function formatarDataPublicacao(valor) {
+  if (!valor) return 'Data não informada'
+  return new Date(valor).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
+
 function mesesEntreDatas(inicio, fim) {
   let meses = (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth())
   if (fim.getDate() < inicio.getDate()) meses -= 1
@@ -319,6 +328,7 @@ export default function TelaFuncionario({ usuario, onLogout }) {
   const [ultimoUpload, setUltimoUpload] = useState(null)
   const [loading, setLoading] = useState(true)
   const [modalZona, setModalZona] = useState(null)
+  const [notificacoesAberto, setNotificacoesAberto] = useState(false)
 
   useEffect(() => { carregarFuncionario() }, [])
   useEffect(() => { carregarDocumentos() }, [])
@@ -525,6 +535,28 @@ export default function TelaFuncionario({ usuario, onLogout }) {
   const zonaFinalInfo = zonaFinal ? ZONAS.find(z => z.zona === zonaFinal.zona) : null
   const zonaAnteriorInfo = zonaAnterior ? ZONAS.find(z => z.zona === zonaAnterior.zona) : null
   const mesFechado = mesEstaFechado(mes)
+  const notificacoesFuncionario = [
+    ultimoUpload ? {
+      titulo: 'Dados atualizados',
+      texto: `Última atualização em ${formatarDataHora(ultimoUpload.uploaded_at)}.`,
+      acao: () => setAbaPortal('painel'),
+    } : null,
+    documentos.length > 0 ? {
+      titulo: `${documentos.length} documento(s) disponível(is)`,
+      texto: 'Regulamentos, manuais e comunicados da empresa.',
+      acao: () => setAbaPortal('documentos'),
+    } : null,
+    mesFechado ? {
+      titulo: 'Espelho de ponto disponível',
+      texto: 'O espelho do mês fechado já pode ser consultado.',
+      acao: () => setAbaPortal('painel'),
+    } : null,
+    premiacaoSemestre > 0 ? {
+      titulo: 'Premiações do semestre',
+      texto: `Você tem ${formatMoeda(premiacaoSemestre)} em premiações de zona no semestre.`,
+      acao: () => setAbaPortal('painel'),
+    } : null,
+  ].filter(Boolean)
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6', fontFamily: 'Inter, Arial, sans-serif' }}>
@@ -557,7 +589,30 @@ export default function TelaFuncionario({ usuario, onLogout }) {
             <div style={{ fontSize: 16, fontWeight: 700 }}>Bem-vindo(a), {usuario.nome.split(' ')[0]}</div>
           </div>
         </div>
-        <button onClick={onLogout} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', borderRadius: 8, padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}>Sair</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, position: 'relative' }}>
+          <button onClick={() => setNotificacoesAberto(v => !v)} title="Notificações" style={bellBtn}>
+            <span style={{ fontSize: 17 }}>🔔</span>
+            {notificacoesFuncionario.length > 0 && <span style={badge}>{notificacoesFuncionario.length > 9 ? '9+' : notificacoesFuncionario.length}</span>}
+          </button>
+          {notificacoesAberto && (
+            <div style={{ ...notificacoesBox, right: isMobile ? 0 : 58, width: isMobile ? 260 : 300 }}>
+              <div style={{ fontWeight: 900, color: '#111', marginBottom: 8 }}>Notificações</div>
+              {notificacoesFuncionario.length === 0 ? (
+                <div style={{ color: '#777', fontSize: 13, padding: 10 }}>Nenhuma atualização nova no momento.</div>
+              ) : notificacoesFuncionario.map((item, index) => (
+                <button
+                  key={`${item.titulo}-${index}`}
+                  onClick={() => { item.acao(); setNotificacoesAberto(false) }}
+                  style={notificacaoItem}
+                >
+                  <strong>{item.titulo}</strong>
+                  <span>{item.texto}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={onLogout} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff', borderRadius: 8, padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}>Sair</button>
+        </div>
       </div>
 
       <main style={{ padding: isMobile ? '12px 10px 24px' : '18px 14px 28px', maxWidth: 860, margin: '0 auto' }}>
@@ -765,7 +820,9 @@ function DocumentosPortal({ documentos, isMobile }) {
         <div key={doc.id} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: 12, alignItems: 'center', padding: '13px 0', borderBottom: '1px solid #f3f4f6' }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 15 }}>{doc.titulo}</div>
-            <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{doc.categoria || 'Documento'}</div>
+            <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>
+              {doc.categoria || 'Documento'} · Publicado em {formatarDataPublicacao(doc.created_at)}
+            </div>
             {doc.descricao && <div style={{ color: '#777', fontSize: 13, marginTop: 6, lineHeight: 1.35 }}>{doc.descricao}</div>}
           </div>
           <a href={doc.url} target="_blank" rel="noreferrer" style={{ background: '#1a1a1a', color: '#fff', borderRadius: 8, padding: '9px 12px', textDecoration: 'none', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', textAlign: 'center' }}>
@@ -973,3 +1030,7 @@ const infoValor = { fontSize: 20, fontWeight: 900, color: '#111', lineHeight: 1.
 const labelForm = { display: 'block', color: '#444', fontSize: 12, fontWeight: 800, marginBottom: 6 }
 const fieldForm = { width: '100%', boxSizing: 'border-box', border: '1.5px solid #ddd', borderRadius: 8, padding: '10px 12px', fontSize: 14, marginBottom: 12, background: '#fff' }
 const portalTabBtn = (active) => ({ border: `1.5px solid ${active ? '#e63946' : '#e5e7eb'}`, background: active ? '#fff1f2' : '#fff', color: active ? '#e63946' : '#555', borderRadius: 8, padding: '11px 12px', fontSize: 14, fontWeight: 800, cursor: 'pointer' })
+const bellBtn = { width: 36, height: 36, borderRadius: 10, border: 'none', background: 'rgba(255,255,255,0.12)', color: '#fff', cursor: 'pointer', position: 'relative', display: 'grid', placeItems: 'center' }
+const badge = { position: 'absolute', top: -5, right: -5, background: '#e63946', color: '#fff', minWidth: 17, height: 17, borderRadius: 999, display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 900, border: '2px solid #1a1a1a' }
+const notificacoesBox = { position: 'absolute', top: 44, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, boxShadow: '0 18px 45px rgba(0,0,0,0.22)', padding: 12, zIndex: 20 }
+const notificacaoItem = { width: '100%', border: 'none', background: '#fff1f2', color: '#333', borderRadius: 9, padding: 11, textAlign: 'left', cursor: 'pointer', display: 'grid', gap: 4, fontSize: 13, marginBottom: 8 }

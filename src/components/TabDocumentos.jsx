@@ -12,6 +12,15 @@ function ordenarDocumentos(lista) {
   })
 }
 
+function formatarDataPublicacao(valor) {
+  if (!valor) return 'Data não informada'
+  return new Date(valor).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
+
 export default function TabDocumentos() {
   const fileRef = useRef(null)
   const [documentos, setDocumentos] = useState([])
@@ -217,7 +226,9 @@ export default function TabDocumentos() {
           <div key={doc.id} style={docRow}>
             <div>
               <div style={{ fontWeight: 800, fontSize: 14 }}>{doc.titulo}</div>
-              <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>{doc.categoria} · {doc.ativo ? 'Visível' : 'Oculto'}</div>
+              <div style={{ color: '#666', fontSize: 12, marginTop: 2 }}>
+                {doc.categoria} · Publicado em {formatarDataPublicacao(doc.created_at)} · {doc.ativo ? 'Visível' : 'Oculto'}
+              </div>
               {doc.descricao && <div style={{ color: '#777', fontSize: 12, marginTop: 5 }}>{doc.descricao}</div>}
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>

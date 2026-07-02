@@ -35,6 +35,11 @@ export default function TelaLoginFuncionario({ onLogin }) {
       setLoading(false)
       return
     }
+    const agora = new Date().toISOString()
+    await Promise.all([
+      supabase.from('portal_usuarios').update({ ultimo_acesso: agora }).eq('id', data.id),
+      supabase.from('rh_funcionarios').update({ ultimo_acesso_portal: agora }).eq('cpf', cpfLimpo),
+    ])
     onLogin(data)
     setLoading(false)
   }

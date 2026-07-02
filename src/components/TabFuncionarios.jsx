@@ -58,6 +58,17 @@ export default function TabFuncionarios() {
     return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
   }
 
+  function formatarUltimoAcesso(valor) {
+    if (!valor) return 'Nunca acessou'
+    return new Date(valor).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
   async function salvar() {
     if (!form.nome || !form.cpf) { setMsg({ tipo: 'erro', texto: 'Nome e CPF são obrigatórios.' }); return }
     setSalvando(true)
@@ -309,6 +320,9 @@ export default function TabFuncionarios() {
                   )}
                   <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
                     Entrada: <strong>{f.horario_entrada || '16:00'}</strong>
+                  </div>
+                  <div style={{ color: f.ultimo_acesso_portal ? '#666' : '#dc2626', fontSize: 12, marginTop: 2, fontWeight: 600 }}>
+                    Último acesso ao portal: {formatarUltimoAcesso(f.ultimo_acesso_portal)}
                   </div>
                   {statusVisual(f) === 'demitido' && (
                     <div style={{ color: '#dc2626', fontSize: 12, marginTop: 4, fontWeight: 600 }}>

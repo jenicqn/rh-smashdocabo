@@ -16,8 +16,12 @@ CREATE TABLE IF NOT EXISTS rh_funcionarios (
   status TEXT DEFAULT 'ativo',
   pausas JSONB DEFAULT '[]',
   horario_entrada TEXT DEFAULT '16:00',
+  ultimo_acesso_portal TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE rh_funcionarios
+ADD COLUMN IF NOT EXISTS ultimo_acesso_portal TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS rh_comissoes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -113,8 +117,12 @@ CREATE TABLE IF NOT EXISTS portal_usuarios (
   cpf TEXT UNIQUE NOT NULL,
   senha TEXT NOT NULL,
   ativo BOOLEAN DEFAULT true,
+  ultimo_acesso TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE portal_usuarios
+ADD COLUMN IF NOT EXISTS ultimo_acesso TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS rh_configuracoes (
   chave TEXT PRIMARY KEY,
